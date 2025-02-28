@@ -803,7 +803,7 @@ impl ChainQuery {
 
         self.lookup_txns(
             self.history_iter_scan_reverse(code, hash, start_height)
-                .map(|row| TxHistoryRow::from_row(row))
+                .map(TxHistoryRow::from_row)
                 // XXX: unique_by() requires keeping an in-memory list of all txids, can we avoid that?
                 .unique_by(|row| row.get_txid())
                 // TODO seek directly to last seen tx without reading earlier rows
@@ -872,7 +872,7 @@ impl ChainQuery {
 
         self.lookup_txns(
             self.history_iter_scan_group_reverse(code, hashes, start_height)
-                .map(|row| TxHistoryRow::from_row(row))
+                .map(TxHistoryRow::from_row)
                 // XXX: unique_by() requires keeping an in-memory list of all txids, can we avoid that?
                 .unique_by(|row| row.get_txid())
                 .skip_while(move |row| {

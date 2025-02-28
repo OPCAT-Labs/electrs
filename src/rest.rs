@@ -1806,17 +1806,19 @@ fn handle_request(
                 .asset_history(&asset_id, None, config.rest_default_chain_txs_per_page)
                 .map(|res| res.map(|(tx, blockid, tx_position)| (tx, Some(blockid), tx_position)))
                 .collect::<Result<Vec<_>, _>>()?;
-            confirmed_txs.sort_unstable_by(|(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
-                blockid2
-                    .as_ref()
-                    .map(|b| b.height)
-                    .cmp(&blockid1.as_ref().map(|b| b.height))
-                    .then_with(|| tx_position2.cmp(tx_position1))
-            });
+            confirmed_txs.sort_unstable_by(
+                |(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
+                    blockid2
+                        .as_ref()
+                        .map(|b| b.height)
+                        .cmp(&blockid1.as_ref().map(|b| b.height))
+                        .then_with(|| tx_position2.cmp(tx_position1))
+                },
+            );
             txs.extend(
                 confirmed_txs
                     .into_iter()
-                    .map(|(tx, blockid, _)| (tx, blockid))
+                    .map(|(tx, blockid, _)| (tx, blockid)),
             );
 
             json_response(prepare_txs(txs, query, config), TTL_SHORT)
@@ -1844,24 +1846,25 @@ fn handle_request(
                 .map(|res| res.map(|(tx, blockid, tx_position)| (tx, Some(blockid), tx_position)))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            txs.sort_unstable_by(
-                |(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
-                    blockid2
-                        .as_ref()
-                        .map(|b| b.height)
-                        .cmp(&blockid1.as_ref().map(|b| b.height))
-                        .then_with(|| tx_position2.cmp(tx_position1))
-                },
-            );
+            txs.sort_unstable_by(|(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
+                blockid2
+                    .as_ref()
+                    .map(|b| b.height)
+                    .cmp(&blockid1.as_ref().map(|b| b.height))
+                    .then_with(|| tx_position2.cmp(tx_position1))
+            });
 
-            json_response(prepare_txs(
-                txs.into_iter().map(|(tx, blockid, _)| (tx, blockid)).collect(),
-                query,
-                config,
-            ),
-            TTL_SHORT,
-        )
-    }
+            json_response(
+                prepare_txs(
+                    txs.into_iter()
+                        .map(|(tx, blockid, _)| (tx, blockid))
+                        .collect(),
+                    query,
+                    config,
+                ),
+                TTL_SHORT,
+            )
+        }
 
         #[cfg(feature = "liquid")]
         (&Method::GET, Some(&"asset"), Some(asset_str), Some(&"txs"), Some(&"mempool"), None) => {
