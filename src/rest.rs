@@ -943,17 +943,31 @@ fn handle_request(
                 } else {
                     after_txid.as_ref()
                 };
+                let mut confirmed_txs = query
+                    .chain()
+                    .history(
+                        &script_hash[..],
+                        after_txid_ref,
+                        confirmed_block_height,
+                        max_txs - txs.len(),
+                    )
+                    .map(|res| {
+                        res.map(|(tx, blockid, tx_position)| (tx, Some(blockid), tx_position))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                confirmed_txs.sort_unstable_by(
+                    |(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
+                        blockid2
+                            .as_ref()
+                            .map(|b| b.height)
+                            .cmp(&blockid1.as_ref().map(|b| b.height))
+                            .then_with(|| tx_position2.cmp(tx_position1))
+                    },
+                );
                 txs.extend(
-                    query
-                        .chain()
-                        .history(
-                            &script_hash[..],
-                            after_txid_ref,
-                            confirmed_block_height,
-                            max_txs - txs.len(),
-                        )
-                        .map(|res| res.map(|(tx, blockid)| (tx, Some(blockid))))
-                        .collect::<Result<Vec<_>, _>>()?,
+                    confirmed_txs
+                        .into_iter()
+                        .map(|(tx, blockid, _)| (tx, blockid)),
                 );
             }
 
@@ -1036,17 +1050,31 @@ fn handle_request(
                 } else {
                     after_txid.as_ref()
                 };
+                let mut confirmed_txs = query
+                    .chain()
+                    .history_group(
+                        &script_hashes,
+                        after_txid_ref,
+                        confirmed_block_height,
+                        max_txs - txs.len(),
+                    )
+                    .map(|res| {
+                        res.map(|(tx, blockid, tx_position)| (tx, Some(blockid), tx_position))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                confirmed_txs.sort_unstable_by(
+                    |(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
+                        blockid2
+                            .as_ref()
+                            .map(|b| b.height)
+                            .cmp(&blockid1.as_ref().map(|b| b.height))
+                            .then_with(|| tx_position2.cmp(tx_position1))
+                    },
+                );
                 txs.extend(
-                    query
-                        .chain()
-                        .history_group(
-                            &script_hashes,
-                            after_txid_ref,
-                            confirmed_block_height,
-                            max_txs - txs.len(),
-                        )
-                        .map(|res| res.map(|(tx, blockid)| (tx, Some(blockid))))
-                        .collect::<Result<Vec<_>, _>>()?,
+                    confirmed_txs
+                        .into_iter()
+                        .map(|(tx, blockid, _)| (tx, blockid)),
                 );
             }
 
@@ -1076,13 +1104,28 @@ fn handle_request(
                 .and_then(|s| s.parse::<usize>().ok())
                 .unwrap_or(config.rest_default_chain_txs_per_page);
 
-            let txs = query
+            let mut txs = query
                 .chain()
                 .history(&script_hash[..], last_seen_txid.as_ref(), None, max_txs)
-                .map(|res| res.map(|(tx, blockid)| (tx, Some(blockid))))
+                .map(|res| res.map(|(tx, blockid, tx_position)| (tx, Some(blockid), tx_position)))
                 .collect::<Result<Vec<_>, _>>()?;
-
-            json_response(prepare_txs(txs, query, config), TTL_SHORT)
+            txs.sort_unstable_by(|(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
+                blockid2
+                    .as_ref()
+                    .map(|b| b.height)
+                    .cmp(&blockid1.as_ref().map(|b| b.height))
+                    .then_with(|| tx_position2.cmp(tx_position1))
+            });
+            json_response(
+                prepare_txs(
+                    txs.into_iter()
+                        .map(|(tx, blockid, _)| (tx, blockid))
+                        .collect(),
+                    query,
+                    config,
+                ),
+                TTL_SHORT,
+            )
         }
         (
             &Method::GET,
@@ -1758,12 +1801,24 @@ fn handle_request(
                     .map(|tx| (tx, None)),
             );
 
+            let mut confirmed_txs = query
+                .chain()
+                .asset_history(&asset_id, None, config.rest_default_chain_txs_per_page)
+                .map(|res| res.map(|(tx, blockid, tx_position)| (tx, Some(blockid), tx_position)))
+                .collect::<Result<Vec<_>, _>>()?;
+            confirmed_txs.sort_unstable_by(
+                |(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
+                    blockid2
+                        .as_ref()
+                        .map(|b| b.height)
+                        .cmp(&blockid1.as_ref().map(|b| b.height))
+                        .then_with(|| tx_position2.cmp(tx_position1))
+                },
+            );
             txs.extend(
-                query
-                    .chain()
-                    .asset_history(&asset_id, None, config.rest_default_chain_txs_per_page)
-                    .map(|res| res.map(|(tx, blockid)| (tx, Some(blockid))))
-                    .collect::<Result<Vec<_>, _>>()?,
+                confirmed_txs
+                    .into_iter()
+                    .map(|(tx, blockid, _)| (tx, blockid)),
             );
 
             json_response(prepare_txs(txs, query, config), TTL_SHORT)
@@ -1781,17 +1836,34 @@ fn handle_request(
             let asset_id = AssetId::from_hex(asset_str)?;
             let last_seen_txid = last_seen_txid.and_then(|txid| Txid::from_hex(txid).ok());
 
-            let txs = query
+            let mut txs = query
                 .chain()
                 .asset_history(
                     &asset_id,
                     last_seen_txid.as_ref(),
                     config.rest_default_chain_txs_per_page,
                 )
-                .map(|res| res.map(|(tx, blockid)| (tx, Some(blockid))))
+                .map(|res| res.map(|(tx, blockid, tx_position)| (tx, Some(blockid), tx_position)))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            json_response(prepare_txs(txs, query, config), TTL_SHORT)
+            txs.sort_unstable_by(|(_, blockid1, tx_position1), (_, blockid2, tx_position2)| {
+                blockid2
+                    .as_ref()
+                    .map(|b| b.height)
+                    .cmp(&blockid1.as_ref().map(|b| b.height))
+                    .then_with(|| tx_position2.cmp(tx_position1))
+            });
+
+            json_response(
+                prepare_txs(
+                    txs.into_iter()
+                        .map(|(tx, blockid, _)| (tx, blockid))
+                        .collect(),
+                    query,
+                    config,
+                ),
+                TTL_SHORT,
+            )
         }
 
         #[cfg(feature = "liquid")]
