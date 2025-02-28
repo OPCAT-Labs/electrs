@@ -780,7 +780,7 @@ impl ChainQuery {
         last_seen_txid: Option<&'a Txid>,
         start_height: Option<u32>,
         limit: usize,
-    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId)>> + 'a {
+    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId, u16)>> + 'a {
         // scripthash lookup
         self._history(b'H', scripthash, last_seen_txid, start_height, limit)
     }
@@ -798,24 +798,27 @@ impl ChainQuery {
         last_seen_txid: Option<&'a Txid>,
         start_height: Option<u32>,
         limit: usize,
-    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId)>> + 'a {
+    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId, u16)>> + 'a {
         let _timer_scan = self.start_timer("history");
 
         self.lookup_txns(
             self.history_iter_scan_reverse(code, hash, start_height)
-                .map(|row| TxHistoryRow::from_row(row).get_txid())
-                // XXX: unique() requires keeping an in-memory list of all txids, can we avoid that?
-                .unique()
+                .map(|row| TxHistoryRow::from_row(row))
+                // XXX: unique_by() requires keeping an in-memory list of all txids, can we avoid that?
+                .unique_by(|row| row.get_txid())
                 // TODO seek directly to last seen tx without reading earlier rows
-                .skip_while(move |txid| {
+                .skip_while(move |row| {
                     // skip until we reach the last_seen_txid
-                    last_seen_txid.map_or(false, |last_seen_txid| last_seen_txid != txid)
+                    last_seen_txid.map_or(false, |last_seen_txid| last_seen_txid != &row.get_txid())
                 })
                 .skip(match last_seen_txid {
                     Some(_) => 1, // skip the last_seen_txid itself
                     None => 0,
                 })
-                .filter_map(move |txid| self.tx_confirming_block(&txid).map(|b| (txid, b))),
+                .filter_map(move |row| {
+                    self.tx_confirming_block(&row.get_txid())
+                        .map(|b| (row.get_txid(), b, row.get_tx_position()))
+                }),
             limit,
         )
     }
@@ -841,7 +844,7 @@ impl ChainQuery {
         last_seen_txid: Option<&'a Txid>,
         start_height: Option<u32>,
         limit: usize,
-    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId)>> + 'a {
+    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId, u16)>> + 'a {
         // scripthash lookup
         self._history_group(b'H', scripthashes, last_seen_txid, start_height, limit)
     }
@@ -863,25 +866,28 @@ impl ChainQuery {
         last_seen_txid: Option<&'a Txid>,
         start_height: Option<u32>,
         limit: usize,
-    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId)>> + 'a {
+    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId, u16)>> + 'a {
         debug!("limit {} | last_seen {:?}", limit, last_seen_txid);
         let _timer_scan = self.start_timer("history_group");
 
         self.lookup_txns(
             self.history_iter_scan_group_reverse(code, hashes, start_height)
-                .map(|row| TxHistoryRow::from_row(row).get_txid())
-                // XXX: unique() requires keeping an in-memory list of all txids, can we avoid that?
-                .unique()
-                .skip_while(move |txid| {
+                .map(|row| TxHistoryRow::from_row(row))
+                // XXX: unique_by() requires keeping an in-memory list of all txids, can we avoid that?
+                .unique_by(|row| row.get_txid())
+                .skip_while(move |row| {
                     // we already seeked to the last txid at this height
                     // now skip just past the last_seen_txid itself
-                    last_seen_txid.map_or(false, |last_seen_txid| last_seen_txid != txid)
+                    last_seen_txid.map_or(false, |last_seen_txid| last_seen_txid != &row.get_txid())
                 })
                 .skip(match last_seen_txid {
                     Some(_) => 1, // skip the last_seen_txid itself
                     None => 0,
                 })
-                .filter_map(move |txid| self.tx_confirming_block(&txid).map(|b| (txid, b))),
+                .filter_map(move |row| {
+                    self.tx_confirming_block(&row.get_txid())
+                        .map(|b| (row.get_txid(), b, row.get_tx_position()))
+                }),
             limit,
         )
     }
@@ -1186,18 +1192,19 @@ impl ChainQuery {
         &'a self,
         txids: I,
         take: usize,
-    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId)>> + 'a
+    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId, u16)>> + 'a
     where
-        I: Iterator<Item = (Txid, BlockId)> + Send + rayon::iter::ParallelBridge + 'a,
+        I: Iterator<Item = (Txid, BlockId, u16)> + Send + rayon::iter::ParallelBridge + 'a,
     {
         txids
             .take(take)
             .par_bridge()
-            .map(move |(txid, blockid)| -> Result<_> {
+            .map(move |(txid, blockid, tx_position)| -> Result<_> {
                 Ok((
                     self.lookup_txn(&txid, Some(&blockid.hash))
                         .chain_err(|| "missing tx")?,
                     blockid,
+                    tx_position,
                 ))
             })
     }
@@ -1955,6 +1962,11 @@ impl TxHistoryRow {
     pub fn get_txid(&self) -> Txid {
         self.key.txinfo.get_txid()
     }
+
+    pub fn get_tx_position(&self) -> u16 {
+        self.key.tx_position
+    }
+
     fn get_funded_outpoint(&self) -> OutPoint {
         self.key.txinfo.get_funded_outpoint()
     }
