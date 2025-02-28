@@ -1322,7 +1322,7 @@ impl ChainQuery {
         asset_id: &'a AssetId,
         last_seen_txid: Option<&'a Txid>,
         limit: usize,
-    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId)>> + 'a {
+    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId, u16)>> + 'a {
         self._history(
             b'I',
             &asset_id.into_inner()[..],
