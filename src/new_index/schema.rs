@@ -326,12 +326,27 @@ impl Indexer {
         // Must rollback blocks before rolling forward
         let headers_len = {
             let mut headers = self.store.indexed_headers.write().unwrap();
-            let reorged = headers.apply(new_headers.clone());
+            let (reorged, rollback_tip) = headers.apply(new_headers.clone());
             assert_eq!(tip, *headers.tip());
             let headers_len = headers.len();
             drop(headers);
 
             if !reorged.is_empty() {
+                // We should rollback the tip blockhash first in case something crashes during rollback
+                // or before the next block appears and sets the new tip.
+                match rollback_tip {
+                    Some(rb_tip) => {
+                        debug!("updating reorged tip to {:?}", rb_tip);
+                        self.store.txstore_db.put_sync(b"t", &serialize(&rb_tip));
+                    }
+                    None => {
+                        // This should only happen on regtest or some weird networks.
+                        error!("Rollback to genesis block detected!!! (rollback to height 0)");
+                        // There is no tip anymore.
+                        self.store.txstore_db.delete(vec![b"t".into()]);
+                    }
+                }
+
                 self.reorg(reorged, &daemon)?;
             }
 
