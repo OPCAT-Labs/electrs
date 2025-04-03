@@ -156,7 +156,11 @@ impl HeaderList {
     }
 
     /// Returns any rolled back blocks in order from old tip first and first block in the fork is last
-    pub fn apply(&mut self, new_headers: Vec<HeaderEntry>) -> Vec<HeaderEntry> {
+    /// It also returns the blockhash of the post-rollback tip.
+    pub fn apply(
+        &mut self,
+        new_headers: Vec<HeaderEntry>,
+    ) -> (Vec<HeaderEntry>, Option<BlockHash>) {
         // new_headers[i] -> new_headers[i - 1] (i.e. new_headers.last() is the tip)
         for i in 1..new_headers.len() {
             assert_eq!(new_headers[i - 1].height() + 1, new_headers[i].height());
@@ -176,7 +180,7 @@ impl HeaderList {
                 assert_eq!(entry.header().prev_blockhash, expected_prev_blockhash);
                 height
             }
-            None => return vec![],
+            None => return (vec![], None),
         };
         debug!(
             "applying {} new headers from height {}",
@@ -184,6 +188,14 @@ impl HeaderList {
             new_height
         );
         let mut removed = self.headers.split_off(new_height); // keep [0..new_height) entries
+
+        // If we reorged, we should return the last blockhash before adding the new chain's blockheaders.
+        let reorged_tip = if !removed.is_empty() {
+            self.headers.last().map(|be| be.hash()).cloned()
+        } else {
+            None
+        };
+
         for new_header in new_headers {
             let height = new_header.height();
             assert_eq!(height, self.headers.len());
@@ -192,7 +204,7 @@ impl HeaderList {
             self.heights.insert(self.tip, height);
         }
         removed.reverse();
-        removed
+        (removed, reorged_tip)
     }
 
     pub fn header_by_blockhash(&self, blockhash: &BlockHash) -> Option<&HeaderEntry> {
