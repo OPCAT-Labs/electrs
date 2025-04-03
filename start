@@ -169,23 +169,23 @@ do
 		ELECTRUM_TXS_LIMIT=9000
 		MAIN_LOOP_DELAY=14000
 	fi
-	if [ "${NODENAME}" = "node202" ] && [ "${LOCATION}" = "va1" ];then
+	if [ "${NODENAME}" = "node204" ] && [ "${LOCATION}" = "sg1" ];then
 		UTXOS_LIMIT=9000
 		ELECTRUM_TXS_LIMIT=9000
 	fi
-	if [ "${NODENAME}" = "node203" ] && [ "${LOCATION}" = "va1" ];then
+	if [ "${NODENAME}" = "node204" ] && [ "${LOCATION}" = "hnl" ];then
 		UTXOS_LIMIT=9000
 		ELECTRUM_TXS_LIMIT=9000
 	fi
-	if [ "${NODENAME}" = "node204" ] && [ "${LOCATION}" = "va1" ];then
+	if [ "${NODENAME}" = "node206" ] && [ "${LOCATION}" = "tk7" ];then
 		UTXOS_LIMIT=9000
 		ELECTRUM_TXS_LIMIT=9000
 	fi
-	if [ "${NODENAME}" = "node205" ] && [ "${LOCATION}" = "va1" ];then
+	if [ "${NODENAME}" = "node211" ];then
 		UTXOS_LIMIT=9000
 		ELECTRUM_TXS_LIMIT=9000
 	fi
-	if [ "${NODENAME}" = "node206" ] && [ "${LOCATION}" = "va1" ];then
+	if [ "${NODENAME}" = "node212" ];then
 		UTXOS_LIMIT=9000
 		ELECTRUM_TXS_LIMIT=9000
 	fi
