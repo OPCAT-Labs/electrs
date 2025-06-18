@@ -535,9 +535,9 @@ mod tests {
     fn test() -> Result<()> {
         stderrlog::new().verbosity(4).init().unwrap();
 
-        #[cfg(feature = "liquid")]
+        #[cfg(feature = "opcat_layer")]
         let testnet = Network::LiquidTestnet;
-        #[cfg(not(feature = "liquid"))]
+        #[cfg(not(feature = "opcat_layer"))]
         let testnet = Network::Testnet;
 
         let features = ServerFeatures {

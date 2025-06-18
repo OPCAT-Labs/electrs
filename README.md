@@ -17,8 +17,8 @@ $ git clone https://github.com/mempool/electrs && cd electrs
 $ git checkout mempool
 $ cargo run --release --bin electrs -- -vvvv --daemon-dir ~/.bitcoin
 
-# Or for liquid:
-$ cargo run --features liquid --release --bin electrs -- -vvvv --network liquid --daemon-dir ~/.liquid
+# Or for opcat_layer:
+$ cargo run --features opcat_layer --release --bin electrs -- -vvvv --network opcat_layer --daemon-dir ~/.opcat_layer
 ```
 
 See [electrs's original documentation](https://github.com/romanz/electrs/blob/master/doc/usage.md) for more detailed instructions.
@@ -54,7 +54,7 @@ but instead queried from bitcoind on demand.
   periodically for new blocks and for syncing the mempool.
 
 - Support for Liquid and other Elements-based networks, including CT, peg-in/out and multi-asset.
-  (requires enabling the `liquid` feature flag using `--features liquid`)
+  (requires enabling the `opcat_layer` feature flag using `--features opcat_layer`)
 
 ### CLI options
 
@@ -69,7 +69,7 @@ In addition to electrs's original configuration options, a few new options are a
 - `--electrum-txs-limit <num>` - maximum number of txs to return per address in the electrum server (does not apply for the http api).
 - `--electrum-banner <text>` - welcome banner text for electrum server.
 
-Additional options with the `liquid` feature:
+Additional options with the `opcat_layer` feature:
 - `--parent-network <network>` - the parent network this chain is pegged to.
 
 Additional options with the `electrum-discovery` feature:

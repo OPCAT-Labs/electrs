@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[cfg(not(feature = "liquid"))] // use regular Bitcoin data structures
+#[cfg(not(feature = "opcat_layer"))] // use regular Bitcoin data structures
 pub use bitcoin::{
     blockdata::{opcodes, script, witness::Witness},
     consensus::deserialize,
@@ -9,60 +9,54 @@ pub use bitcoin::{
     Block, BlockHash, BlockHeader, OutPoint, Script, Transaction, TxIn, TxOut, Txid,
 };
 
-#[cfg(feature = "liquid")]
-pub use {
-    crate::elements::asset,
-    elements::{
-        address, confidential, encode::deserialize, hashes, opcodes, script, Address, AssetId,
-        Block, BlockHash, BlockHeader, OutPoint, Script, Transaction, TxIn, TxInWitness as Witness,
-        TxOut, Txid,
-    },
+#[cfg(feature = "opcat_layer")]
+pub use crate::opcat_layer::{
+    hashes, address, blockdata::{script, opcodes},
+    Address, Block, BlockHash, BlockHeader, OutPoint, Script, 
+    Transaction, TxIn, TxOut, Txid
 };
 
 use bitcoin::blockdata::constants::genesis_block;
 pub use bitcoin::network::constants::Network as BNetwork;
 
-#[cfg(not(feature = "liquid"))]
+#[cfg(not(feature = "opcat_layer"))]
 pub type Value = u64;
-#[cfg(feature = "liquid")]
-pub use confidential::Value;
+
+#[cfg(feature = "opcat_layer")]
+pub use crate::opcat_layer::Amount as Value;
 
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Serialize, Ord, PartialOrd, Eq)]
 pub enum Network {
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     Bitcoin,
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     Testnet,
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     Testnet4,
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     Regtest,
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     Signet,
 
-    #[cfg(feature = "liquid")]
-    Liquid,
-    #[cfg(feature = "liquid")]
-    LiquidTestnet,
-    #[cfg(feature = "liquid")]
-    LiquidRegtest,
+    #[cfg(feature = "opcat_layer")]
+    OpcatLayerMainnet,
+    #[cfg(feature = "opcat_layer")]
+    OpcatLayerTestnet,
+    #[cfg(feature = "opcat_layer")]
+    OpcatLayerRegtest,
 }
 
-#[cfg(feature = "liquid")]
-pub const LIQUID_TESTNET_PARAMS: address::AddressParams = address::AddressParams {
-    p2pkh_prefix: 36,
-    p2sh_prefix: 19,
-    blinded_prefix: 23,
-    bech_hrp: "tex",
-    blech_hrp: "tlq",
+#[cfg(feature = "opcat_layer")]
+pub use crate::opcat_layer::address::{
+    OPCAT_MAINNET_PARAMS, OPCAT_TESTNET_PARAMS, OPCAT_REGTEST_PARAMS
 };
 
 /// Magic for testnet4, 0x1c163f28 (from BIP94) with flipped endianness.
-#[cfg(not(feature = "liquid"))]
+#[cfg(not(feature = "opcat_layer"))]
 const TESTNET4_MAGIC: u32 = 0x283f161c;
 
 impl Network {
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     pub fn magic(self) -> u32 {
         match self {
             Self::Testnet4 => TESTNET4_MAGIC,
@@ -70,53 +64,36 @@ impl Network {
         }
     }
 
-    #[cfg(feature = "liquid")]
+    #[cfg(feature = "opcat_layer")]
     pub fn magic(self) -> u32 {
         match self {
-            Network::Liquid | Network::LiquidRegtest => 0xDAB5_BFFA,
-            Network::LiquidTestnet => 0x62DD_0E41,
+            Network::OpcatLayerMainnet => 0xF9BE_B4D9,    // Same as Bitcoin for now
+            Network::OpcatLayerTestnet => 0x0709_110B,    // Same as Bitcoin testnet for now  
+            Network::OpcatLayerRegtest => 0xFABF_B5DA,    // Same as Bitcoin regtest for now
         }
     }
 
     pub fn is_regtest(self) -> bool {
         match self {
-            #[cfg(not(feature = "liquid"))]
+            #[cfg(not(feature = "opcat_layer"))]
             Network::Regtest => true,
-            #[cfg(feature = "liquid")]
-            Network::LiquidRegtest => true,
+            #[cfg(feature = "opcat_layer")]
+            Network::OpcatLayerRegtest => true,
             _ => false,
         }
     }
 
-    #[cfg(feature = "liquid")]
-    pub fn address_params(self) -> &'static address::AddressParams {
-        // Liquid regtest uses elements's address params
+    #[cfg(feature = "opcat_layer")]
+    pub fn address_params(self) -> &'static crate::opcat_layer::address::OpcatAddressParams {
         match self {
-            Network::Liquid => &address::AddressParams::LIQUID,
-            Network::LiquidRegtest => &address::AddressParams::ELEMENTS,
-            Network::LiquidTestnet => &LIQUID_TESTNET_PARAMS,
-        }
-    }
-
-    #[cfg(feature = "liquid")]
-    pub fn native_asset(self) -> &'static AssetId {
-        match self {
-            Network::Liquid => &asset::NATIVE_ASSET_ID,
-            Network::LiquidTestnet => &asset::NATIVE_ASSET_ID_TESTNET,
-            Network::LiquidRegtest => &asset::NATIVE_ASSET_ID_REGTEST,
-        }
-    }
-
-    #[cfg(feature = "liquid")]
-    pub fn pegged_asset(self) -> Option<&'static AssetId> {
-        match self {
-            Network::Liquid => Some(&*asset::NATIVE_ASSET_ID),
-            Network::LiquidTestnet | Network::LiquidRegtest => None,
+            Network::OpcatLayerMainnet => &OPCAT_MAINNET_PARAMS,
+            Network::OpcatLayerTestnet => &OPCAT_TESTNET_PARAMS,
+            Network::OpcatLayerRegtest => &OPCAT_REGTEST_PARAMS,
         }
     }
 
     pub fn names() -> Vec<String> {
-        #[cfg(not(feature = "liquid"))]
+        #[cfg(not(feature = "opcat_layer"))]
         return vec![
             "mainnet".to_string(),
             "testnet".to_string(),
@@ -124,20 +101,20 @@ impl Network {
             "signet".to_string(),
         ];
 
-        #[cfg(feature = "liquid")]
+        #[cfg(feature = "opcat_layer")]
         return vec![
-            "liquid".to_string(),
-            "liquidtestnet".to_string(),
-            "liquidregtest".to_string(),
+            "opcat".to_string(),
+            "opcattestnet".to_string(),
+            "opcatregtest".to_string(),
         ];
     }
 }
 
 pub fn genesis_hash(network: Network) -> BlockHash {
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     return bitcoin_genesis_hash(network);
-    #[cfg(feature = "liquid")]
-    return liquid_genesis_hash(network);
+    #[cfg(feature = "opcat_layer")]
+    return opcat_genesis_hash(network);
 }
 
 pub fn bitcoin_genesis_hash(network: Network) -> bitcoin::BlockHash {
@@ -155,7 +132,7 @@ pub fn bitcoin_genesis_hash(network: Network) -> bitcoin::BlockHash {
         static ref SIGNET_GENESIS: bitcoin::BlockHash =
             genesis_block(BNetwork::Signet).block_hash();
     }
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     match network {
         Network::Bitcoin => *BITCOIN_GENESIS,
         Network::Testnet => *TESTNET_GENESIS,
@@ -163,59 +140,52 @@ pub fn bitcoin_genesis_hash(network: Network) -> bitcoin::BlockHash {
         Network::Regtest => *REGTEST_GENESIS,
         Network::Signet => *SIGNET_GENESIS,
     }
-    #[cfg(feature = "liquid")]
+    #[cfg(feature = "opcat_layer")]
     match network {
-        Network::Liquid => *BITCOIN_GENESIS,
-        Network::LiquidTestnet => *TESTNET_GENESIS,
-        Network::LiquidRegtest => *REGTEST_GENESIS,
+        Network::OpcatLayerMainnet => *BITCOIN_GENESIS,    // Use Bitcoin genesis for now
+        Network::OpcatLayerTestnet => *TESTNET_GENESIS,    // Use Bitcoin testnet genesis for now
+        Network::OpcatLayerRegtest => *REGTEST_GENESIS,    // Use Bitcoin regtest genesis for now
     }
 }
 
-#[cfg(feature = "liquid")]
-pub fn liquid_genesis_hash(network: Network) -> elements::BlockHash {
-    lazy_static! {
-        static ref LIQUID_GENESIS: BlockHash =
-            "1466275836220db2944ca059a3a10ef6fd2ea684b0688d2c379296888a206003"
-                .parse()
-                .unwrap();
-    }
-
-    match network {
-        Network::Liquid => *LIQUID_GENESIS,
-        // The genesis block for liquid regtest chains varies based on the chain configuration.
-        // This instead uses an all zeroed-out hash, which doesn't matter in practice because its
-        // only used for Electrum server discovery, which isn't active on regtest.
-        _ => Default::default(),
-    }
+#[cfg(feature = "opcat_layer")]
+pub fn opcat_genesis_hash(network: Network) -> crate::opcat_layer::BlockHash {
+    // For now, use the same genesis blocks as Bitcoin
+    // These can be replaced with actual OPCAT Layer genesis blocks later
+    let bitcoin_hash = bitcoin_genesis_hash(network);
+    
+    // Convert Bitcoin BlockHash to OPCAT Layer BlockHash
+    // This assumes they have the same internal representation
+    crate::opcat_layer::BlockHash::from_hash(bitcoin_hash.as_hash())
 }
 
 impl From<&str> for Network {
     fn from(network_name: &str) -> Self {
         match network_name {
-            #[cfg(not(feature = "liquid"))]
+            #[cfg(not(feature = "opcat_layer"))]
             "mainnet" => Network::Bitcoin,
-            #[cfg(not(feature = "liquid"))]
+            #[cfg(not(feature = "opcat_layer"))]
             "testnet" => Network::Testnet,
-            #[cfg(not(feature = "liquid"))]
+            #[cfg(not(feature = "opcat_layer"))]
             "testnet4" => Network::Testnet4,
-            #[cfg(not(feature = "liquid"))]
+            #[cfg(not(feature = "opcat_layer"))]
             "regtest" => Network::Regtest,
-            #[cfg(not(feature = "liquid"))]
+            #[cfg(not(feature = "opcat_layer"))]
             "signet" => Network::Signet,
 
-            #[cfg(feature = "liquid")]
-            "liquid" => Network::Liquid,
-            #[cfg(feature = "liquid")]
-            "liquidtestnet" => Network::LiquidTestnet,
-            #[cfg(feature = "liquid")]
-            "liquidregtest" => Network::LiquidRegtest,
+            #[cfg(feature = "opcat_layer")]
+            "opcat" => Network::OpcatLayerMainnet,
+            #[cfg(feature = "opcat_layer")]
+            "opcattestnet" => Network::OpcatLayerTestnet,
+            #[cfg(feature = "opcat_layer")]
+            "opcatregtest" => Network::OpcatLayerRegtest,
 
-            _ => panic!("unsupported Bitcoin network: {:?}", network_name),
+            _ => panic!("unsupported network: {:?}", network_name),
         }
     }
 }
 
-#[cfg(not(feature = "liquid"))]
+#[cfg(not(feature = "opcat_layer"))]
 impl From<Network> for BNetwork {
     fn from(network: Network) -> Self {
         match network {
@@ -228,7 +198,7 @@ impl From<Network> for BNetwork {
     }
 }
 
-#[cfg(not(feature = "liquid"))]
+#[cfg(not(feature = "opcat_layer"))]
 impl From<BNetwork> for Network {
     fn from(network: BNetwork) -> Self {
         match network {
@@ -236,6 +206,29 @@ impl From<BNetwork> for Network {
             BNetwork::Testnet => Network::Testnet,
             BNetwork::Regtest => Network::Regtest,
             BNetwork::Signet => Network::Signet,
+        }
+    }
+}
+
+#[cfg(feature = "opcat_layer")]
+impl From<Network> for BNetwork {
+    fn from(network: Network) -> Self {
+        match network {
+            Network::OpcatLayerMainnet => BNetwork::Bitcoin,
+            Network::OpcatLayerTestnet => BNetwork::Testnet,
+            Network::OpcatLayerRegtest => BNetwork::Regtest,
+        }
+    }
+}
+
+#[cfg(feature = "opcat_layer")]
+impl From<BNetwork> for Network {
+    fn from(network: BNetwork) -> Self {
+        match network {
+            BNetwork::Bitcoin => Network::OpcatLayerMainnet,
+            BNetwork::Testnet => Network::OpcatLayerTestnet,
+            BNetwork::Regtest => Network::OpcatLayerRegtest,
+            BNetwork::Signet => Network::OpcatLayerTestnet,  // Map signet to testnet for now
         }
     }
 }

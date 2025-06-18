@@ -20,24 +20,12 @@ use electrs::{
     signal::Waiter,
 };
 
-#[cfg(feature = "liquid")]
-use electrs::elements::AssetRegistry;
-
 fn fetch_from(config: &Config, store: &Store) -> FetchFrom {
-    let mut jsonrpc_import = config.jsonrpc_import;
-    if !jsonrpc_import {
-        // switch over to jsonrpc after the initial sync is done
-        jsonrpc_import = store.done_initial_sync();
-    }
-
-    if jsonrpc_import {
-        // slower, uses JSONRPC (good for incremental updates)
-        FetchFrom::Bitcoind
-    } else {
-        // faster, uses blk*.dat files (good for initial indexing)
-        FetchFrom::BlkFiles
-    }
+    // Determine whether to fetch blocks from bitcoind or block files
+    // For now, default to bitcoind. This logic can be enhanced later.
+    FetchFrom::Bitcoind
 }
+
 
 fn run_server(config: Arc<Config>) -> Result<()> {
     let signal = Waiter::start();
@@ -88,20 +76,20 @@ fn run_server(config: Arc<Config>) -> Result<()> {
         }
     }
 
-    #[cfg(feature = "liquid")]
-    let asset_db = config.asset_db_path.as_ref().map(|db_dir| {
-        let asset_db = Arc::new(RwLock::new(AssetRegistry::new(db_dir.clone())));
-        AssetRegistry::spawn_sync(asset_db.clone());
-        asset_db
-    });
+    // #[cfg(feature = "opcat_layer")]
+    // let asset_db = config.asset_db_path.as_ref().map(|db_dir| {
+    //     let asset_db = Arc::new(RwLock::new(AssetRegistry::new(db_dir.clone())));
+    //     AssetRegistry::spawn_sync(asset_db.clone());
+    //     asset_db
+    // });
 
     let query = Arc::new(Query::new(
         Arc::clone(&chain),
         Arc::clone(&mempool),
         Arc::clone(&daemon),
         Arc::clone(&config),
-        #[cfg(feature = "liquid")]
-        asset_db,
+        // #[cfg(feature = "opcat_layer")]
+        // asset_db,
     ));
 
     // TODO: configuration for which servers to start

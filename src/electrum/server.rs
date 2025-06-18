@@ -19,28 +19,22 @@ use hex;
 use serde_json::{from_str, Value};
 use sha2::{Digest, Sha256};
 
-#[cfg(not(feature = "liquid"))]
 use bitcoin::consensus::encode::serialize;
-#[cfg(feature = "liquid")]
-use elements::encode::serialize;
-
-use crate::chain::Txid;
-use crate::config::{Config, VERSION_STRING};
-use crate::electrum::{get_electrum_height, ProtocolVersion};
-use crate::errors::*;
-use crate::metrics::{Gauge, HistogramOpts, HistogramVec, MetricOpts, Metrics};
-use crate::new_index::{Query, Utxo};
-use crate::util::electrum_merkle::{get_header_merkle_proof, get_id_from_pos, get_tx_merkle_proof};
-use crate::util::{
-    create_socket, full_hash, spawn_thread, BlockId, BoolThen, Channel, FullHash, HeaderEntry,
-    SyncChannel,
-};
 
 const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::new(1, 4);
 const MAX_HEADERS: usize = 2016;
 
 #[cfg(feature = "electrum-discovery")]
 use crate::electrum::{DiscoveryManager, ServerFeatures};
+
+use crate::electrum::{ProtocolVersion, get_electrum_height};
+use crate::chain::{Txid, Transaction, BlockHeader, BlockHash, OutPoint};
+use crate::util::{BlockId, FullHash, full_hash, ScriptToAddr, ScriptToAsm, HeaderEntry, create_socket, spawn_thread, SyncChannel, Channel};
+use crate::util::electrum_merkle::{get_header_merkle_proof, get_tx_merkle_proof, get_id_from_pos};
+use crate::new_index::{Query, ChainQuery, Utxo, SpendingInput};
+use crate::config::{Config, VERSION_STRING};
+use crate::errors::*;
+use crate::metrics::{HistogramVec, HistogramOpts, MetricOpts, Metrics, Gauge};
 
 // TODO: Sha256dHash should be a generic hash-container (since script hash is single SHA256)
 fn hash_from_value(val: Option<&Value>) -> Result<Sha256dHash> {
@@ -84,9 +78,11 @@ fn get_status_hash(txs: Vec<(Txid, Option<BlockId>)>, query: &Query) -> Option<F
         let mut hasher = Sha256::new();
         for (txid, blockid) in txs {
             let is_mempool = blockid.is_none();
-            let has_unconfirmed_parents = is_mempool
-                .and_then(|| Some(query.has_unconfirmed_parents(&txid)))
-                .unwrap_or(false);
+            let has_unconfirmed_parents = if is_mempool {
+                query.has_unconfirmed_parents(&txid)
+            } else {
+                false
+            };
             let height = get_electrum_height(blockid, has_unconfirmed_parents);
             let part = format!("{}:{}:", txid, height);
             hasher.update(part.as_bytes());
@@ -308,7 +304,7 @@ impl Connection {
         Ok(status_hash)
     }
 
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     fn blockchain_scripthash_get_balance(&self, params: &[Value]) -> Result<Value> {
         let script_hash = hash_from_value(params.first()).chain_err(|| "bad script_hash")?;
         let (chain_stats, mempool_stats) = self.query.stats(&script_hash[..]);
@@ -327,10 +323,16 @@ impl Connection {
             .into_iter()
             .map(|(txid, blockid)| {
                 let is_mempool = blockid.is_none();
-                let fee = is_mempool.and_then(|| self.query.get_mempool_tx_fee(&txid));
-                let has_unconfirmed_parents = is_mempool
-                    .and_then(|| Some(self.query.has_unconfirmed_parents(&txid)))
-                    .unwrap_or(false);
+                let fee = if is_mempool { 
+                    self.query.get_mempool_tx_fee(&txid) 
+                } else { 
+                    None 
+                };
+                let has_unconfirmed_parents = if is_mempool {
+                    self.query.has_unconfirmed_parents(&txid)
+                } else {
+                    false
+                };
                 let height = get_electrum_height(blockid, has_unconfirmed_parents);
                 GetHistoryResult { txid, height, fee }
             })
@@ -349,13 +351,13 @@ impl Connection {
                 "value": utxo.value,
             });
 
-            #[cfg(feature = "liquid")]
-            let json = {
-                let mut json = json;
-                json["asset"] = json!(utxo.asset);
-                json["nonce"] = json!(utxo.nonce);
-                json
-            };
+            // #[cfg(feature = "opcat_layer")]
+            // let json = {
+            //     let mut json = json;
+            //     json["asset"] = json!(utxo.asset);
+            //     json["nonce"] = json!(utxo.nonce);
+            //     json
+            // };
 
             json
         };
@@ -441,7 +443,7 @@ impl Connection {
             "blockchain.estimatefee" => self.blockchain_estimatefee(params),
             "blockchain.headers.subscribe" => self.blockchain_headers_subscribe(),
             "blockchain.relayfee" => self.blockchain_relayfee(),
-            #[cfg(not(feature = "liquid"))]
+            #[cfg(not(feature = "opcat_layer"))]
             "blockchain.scripthash.get_balance" => self.blockchain_scripthash_get_balance(params),
             "blockchain.scripthash.get_history" => self.blockchain_scripthash_get_history(params),
             "blockchain.scripthash.listunspent" => self.blockchain_scripthash_listunspent(params),

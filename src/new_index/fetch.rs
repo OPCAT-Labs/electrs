@@ -1,10 +1,4 @@
 use rayon::prelude::*;
-
-#[cfg(not(feature = "liquid"))]
-use bitcoin::consensus::encode::{deserialize, Decodable};
-#[cfg(feature = "liquid")]
-use elements::encode::{deserialize, Decodable};
-
 use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
@@ -12,11 +6,15 @@ use std::path::PathBuf;
 use std::thread;
 
 use crate::chain::{Block, BlockHash};
+use crate::util::HeaderEntry;
 use crate::daemon::Daemon;
 use crate::errors::*;
-use crate::util::{spawn_thread, HeaderEntry, SyncChannel};
+use crate::util::{spawn_thread, SyncChannel};
 
-#[derive(Clone, Copy, Debug)]
+
+use bitcoin::consensus::encode::{deserialize, Decodable};
+
+#[derive(Debug, Clone, Copy)]
 pub enum FetchFrom {
     Bitcoind,
     BlkFiles,

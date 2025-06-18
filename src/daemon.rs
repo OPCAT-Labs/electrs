@@ -12,29 +12,16 @@ use hex;
 use itertools::Itertools;
 use serde_json::{from_str, from_value, Value};
 
-#[cfg(not(feature = "liquid"))]
+#[cfg(not(feature = "opcat_layer"))]
 use bitcoin::consensus::encode::{deserialize, serialize};
-#[cfg(feature = "liquid")]
-use elements::encode::{deserialize, serialize};
+#[cfg(feature = "opcat_layer")]
+use crate::opcat_layer::consensus::encode::{deserialize, serialize};
 
-use crate::chain::{Block, BlockHash, BlockHeader, Network, Transaction, Txid};
-use crate::metrics::{HistogramOpts, HistogramVec, Metrics};
-use crate::signal::Waiter;
-use crate::util::HeaderList;
-
+use crate::chain::{Block, BlockHeader, Transaction, BlockHash, Txid, Network};
 use crate::errors::*;
-
-fn parse_hash<T>(value: &Value) -> Result<T>
-where
-    T: FromHex,
-{
-    T::from_hex(
-        value
-            .as_str()
-            .chain_err(|| format!("non-string value: {}", value))?,
-    )
-    .chain_err(|| format!("non-hex value: {}", value))
-}
+use crate::util::HeaderList;
+use crate::signal::Waiter;
+use crate::metrics::{HistogramVec, HistogramOpts, Metrics};
 
 fn header_from_value(value: Value) -> Result<BlockHeader> {
     let header_hex = value
@@ -527,7 +514,17 @@ impl Daemon {
     }
 
     fn getmempoolinfo(&self) -> Result<MempoolInfo> {
-        let info: Value = self.request("getmempoolinfo", json!([]))?;
+        let mut info: Value = self.request("getmempoolinfo", json!([]))?;
+
+        // The `loaded` field is not present in bitcoind < 0.21.0, so we
+        // add `loaded = true`.
+        // TODO: add this field in nodes
+        if let Some(info_obj) = info.as_object_mut() {
+        if !info_obj.contains_key("loaded") {
+                info_obj.insert("loaded".to_string(), Value::Bool(true));
+            }
+        }
+
         from_value(info).chain_err(|| "invalid mempool info")
     }
 
@@ -537,7 +534,9 @@ impl Daemon {
     }
 
     pub fn getbestblockhash(&self) -> Result<BlockHash> {
-        parse_hash(&self.request("getbestblockhash", json!([]))?)
+        let result = self.request("getbestblockhash", json!([]))?;
+        let hash_str = result.as_str().chain_err(|| "non-string blockhash")?;
+        BlockHash::from_hex(hash_str).chain_err(|| "invalid blockhash")
     }
 
     pub fn getblockheader(&self, blockhash: &BlockHash) -> Result<BlockHeader> {

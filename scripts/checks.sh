@@ -34,7 +34,7 @@ cargo fmt $@ -q --all -- --check
 
 # Testing all the combinations of clippy.
 # There were many instances where a certain struct
-# differed based on liquid or not(liquid) etc.
+# differed based on opcat_layer or not(opcat_layer) etc.
 # and the clippy fixes would break the other
 # feature combination.
 #
@@ -49,13 +49,13 @@ TESTNAME="Running cargo clippy check electrum-discovery"
 echo "$TESTNAME"
 cargo clippy $@ -q -F electrum-discovery
 
-TESTNAME="Running cargo clippy check liquid"
+TESTNAME="Running cargo clippy check opcat_layer"
 echo "$TESTNAME"
-cargo clippy $@ -q -F liquid
+cargo clippy $@ -q -F opcat_layer
 
-TESTNAME="Running cargo clippy check electrum-discovery + liquid"
+TESTNAME="Running cargo clippy check electrum-discovery + opcat_layer"
 echo "$TESTNAME"
-cargo clippy $@ -q -F electrum-discovery,liquid
+cargo clippy $@ -q -F electrum-discovery,opcat_layer
 
 TESTNAME="Running cargo test with all features"
 echo "$TESTNAME"

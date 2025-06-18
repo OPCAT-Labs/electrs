@@ -1,18 +1,16 @@
 use bitcoin::hashes::sha256d::Hash as Sha256dHash;
-#[cfg(not(feature = "liquid"))]
+#[cfg(not(feature = "opcat_layer"))]
 use bitcoin::util::merkleblock::MerkleBlock;
 use bitcoin::VarInt;
 use itertools::Itertools;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
-#[cfg(not(feature = "liquid"))]
+#[cfg(not(feature = "opcat_layer"))]
 use bitcoin::consensus::encode::{deserialize, serialize};
-#[cfg(feature = "liquid")]
-use elements::{
-    encode::{deserialize, serialize},
-    AssetId,
-};
+
+#[cfg(feature = "opcat_layer")]
+use crate::opcat_layer::consensus::encode::{deserialize, serialize};
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryInto;
@@ -31,18 +29,12 @@ use crate::util::{
     BlockStatus, Bytes, HeaderEntry, HeaderList, ScriptToAddr,
 };
 
-use crate::new_index::db::{DBFlush, DBRow, ReverseScanIterator, ScanIterator, DB};
-use crate::new_index::fetch::{start_fetcher, BlockEntry, FetchFrom};
-
-#[cfg(feature = "liquid")]
-use crate::elements::{asset, peg};
-
-use super::{db::ReverseScanGroupIterator, fetch::bitcoind_sequential_fetcher};
+use crate::new_index::db::{DBFlush, DBRow, ReverseScanIterator, ReverseScanGroupIterator, ScanIterator, DB};
+use crate::new_index::fetch::{start_fetcher, BlockEntry, FetchFrom, bitcoind_sequential_fetcher};
 
 const MIN_HISTORY_ITEMS_TO_CACHE: usize = 100;
 
 pub struct Store {
-    // TODO: should be column families
     txstore_db: DB,
     history_db: DB,
     cache_db: DB,
@@ -112,12 +104,12 @@ pub struct Utxo {
     pub confirmed: Option<BlockId>,
     pub value: Value,
 
-    #[cfg(feature = "liquid")]
-    pub asset: elements::confidential::Asset,
-    #[cfg(feature = "liquid")]
-    pub nonce: elements::confidential::Nonce,
-    #[cfg(feature = "liquid")]
-    pub witness: elements::TxOutWitness,
+    // #[cfg(feature = "opcat_layer")]
+    // pub asset: elements::confidential::Asset,
+    // #[cfg(feature = "opcat_layer")]
+    // pub nonce: elements::confidential::Nonce,
+    // #[cfg(feature = "opcat_layer")]
+    // pub witness: elements::TxOutWitness,
 }
 
 impl From<&Utxo> for OutPoint {
@@ -141,20 +133,20 @@ pub struct ScriptStats {
     pub tx_count: usize,
     pub funded_txo_count: usize,
     pub spent_txo_count: usize,
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     pub funded_txo_sum: u64,
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     pub spent_txo_sum: u64,
 }
 
 impl ScriptStats {
-    #[cfg(feature = "liquid")]
+    #[cfg(feature = "opcat_layer")]
     fn is_sane(&self) -> bool {
         // See below for comments.
         self.spent_txo_count <= self.funded_txo_count
             && self.tx_count <= self.spent_txo_count + self.funded_txo_count
     }
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(not(feature = "opcat_layer"))]
     fn is_sane(&self) -> bool {
         // There are less or equal spends to funds
         self.spent_txo_count <= self.funded_txo_count
@@ -184,8 +176,8 @@ struct IndexerConfig {
     address_search: bool,
     index_unspendables: bool,
     network: Network,
-    #[cfg(feature = "liquid")]
-    parent_network: crate::chain::BNetwork,
+    // #[cfg(feature = "opcat_layer")]
+    // parent_network: crate::chain::BNetwork,
 }
 
 impl From<&Config> for IndexerConfig {
@@ -195,8 +187,8 @@ impl From<&Config> for IndexerConfig {
             address_search: config.address_search,
             index_unspendables: config.index_unspendables,
             network: config.network_type,
-            #[cfg(feature = "liquid")]
-            parent_network: config.parent_network,
+            // #[cfg(feature = "opcat_layer")]
+            // parent_network: config.parent_network,
         }
     }
 }
@@ -311,7 +303,7 @@ impl Indexer {
             self.store.cache_db.delete(vec![
                 StatsCacheRow::key(&script),
                 UtxoCacheRow::key(&script),
-                #[cfg(feature = "liquid")]
+                #[cfg(feature = "opcat_layer")]
                 [b"z", &script[..]].concat(), // asset cache key
             ]);
         }
@@ -679,7 +671,7 @@ impl ChainQuery {
                 break;
             }
             match info {
-                #[cfg(not(feature = "liquid"))]
+                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Funding(info) => {
                     map.entry(txid)
                         .and_modify(|tx| {
@@ -693,7 +685,7 @@ impl ChainQuery {
                             tx_position,
                         });
                 }
-                #[cfg(not(feature = "liquid"))]
+                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Spending(info) => {
                     map.entry(txid)
                         .and_modify(|tx| {
@@ -707,7 +699,7 @@ impl ChainQuery {
                             tx_position,
                         });
                 }
-                #[cfg(feature = "liquid")]
+                #[cfg(feature = "opcat_layer")]
                 TxHistoryInfo::Funding(_info) => {
                     map.entry(txid).or_insert(TxHistorySummary {
                         txid,
@@ -717,7 +709,7 @@ impl ChainQuery {
                         tx_position,
                     });
                 }
-                #[cfg(feature = "liquid")]
+                #[cfg(feature = "opcat_layer")]
                 TxHistoryInfo::Spending(_info) => {
                     map.entry(txid).or_insert(TxHistorySummary {
                         txid,
@@ -727,7 +719,7 @@ impl ChainQuery {
                         tx_position,
                     });
                 }
-                #[cfg(feature = "liquid")]
+                #[cfg(feature = "opcat_layer")]
                 _ => {}
             }
         }
@@ -945,10 +937,10 @@ impl ChainQuery {
         Ok(newutxos
             .into_iter()
             .map(|(outpoint, (blockid, value))| {
-                // in elements/liquid chains, we have to lookup the txo in order to get its
+                // in elements/opcat_layer chains, we have to lookup the txo in order to get its
                 // associated asset. the asset information could be kept in the db history rows
                 // alongside the value to avoid this.
-                #[cfg(feature = "liquid")]
+                #[cfg(feature = "opcat_layer")]
                 let txo = self.lookup_txo(&outpoint).expect("missing utxo");
 
                 Utxo {
@@ -957,12 +949,12 @@ impl ChainQuery {
                     value,
                     confirmed: Some(blockid),
 
-                    #[cfg(feature = "liquid")]
-                    asset: txo.asset,
-                    #[cfg(feature = "liquid")]
-                    nonce: txo.nonce,
-                    #[cfg(feature = "liquid")]
-                    witness: txo.witness,
+                    // #[cfg(feature = "opcat_layer")]
+                    // asset: txo.asset,
+                    // #[cfg(feature = "opcat_layer")]
+                    // nonce: txo.nonce,
+                    // #[cfg(feature = "opcat_layer")]
+                    // witness: txo.witness,
                 }
             })
             .collect())
@@ -1000,11 +992,11 @@ impl ChainQuery {
                     utxos.insert(history.get_funded_outpoint(), (blockid, info.value))
                 }
                 TxHistoryInfo::Spending(_) => utxos.remove(&history.get_funded_outpoint()),
-                #[cfg(feature = "liquid")]
-                TxHistoryInfo::Issuing(_)
-                | TxHistoryInfo::Burning(_)
-                | TxHistoryInfo::Pegin(_)
-                | TxHistoryInfo::Pegout(_) => unreachable!(),
+                // #[cfg(feature = "opcat_layer")]
+                // TxHistoryInfo::Issuing(_)
+                // | TxHistoryInfo::Burning(_)
+                // | TxHistoryInfo::Pegin(_)
+                // | TxHistoryInfo::Pegout(_) => unreachable!(),
             };
 
             // abort if the utxo set size excedees the limit at any point in time
@@ -1084,33 +1076,33 @@ impl ChainQuery {
             }
 
             match history.key.txinfo {
-                #[cfg(not(feature = "liquid"))]
+                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Funding(ref info) => {
                     stats.funded_txo_count += 1;
                     stats.funded_txo_sum += info.value;
                 }
 
-                #[cfg(not(feature = "liquid"))]
+                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Spending(ref info) => {
                     stats.spent_txo_count += 1;
                     stats.spent_txo_sum += info.value;
                 }
 
-                #[cfg(feature = "liquid")]
+                #[cfg(feature = "opcat_layer")]
                 TxHistoryInfo::Funding(_) => {
                     stats.funded_txo_count += 1;
                 }
 
-                #[cfg(feature = "liquid")]
+                #[cfg(feature = "opcat_layer")]
                 TxHistoryInfo::Spending(_) => {
                     stats.spent_txo_count += 1;
                 }
 
-                #[cfg(feature = "liquid")]
-                TxHistoryInfo::Issuing(_)
-                | TxHistoryInfo::Burning(_)
-                | TxHistoryInfo::Pegin(_)
-                | TxHistoryInfo::Pegout(_) => unreachable!(),
+                // #[cfg(feature = "opcat_layer")]
+                // TxHistoryInfo::Issuing(_)
+                // | TxHistoryInfo::Burning(_)
+                // | TxHistoryInfo::Pegin(_)
+                // | TxHistoryInfo::Pegout(_) => unreachable!(),
             }
 
             lastblock = Some(blockid.hash);
@@ -1317,7 +1309,7 @@ impl ChainQuery {
             })
     }
 
-    #[cfg(not(feature = "liquid"))]
+    #[cfg(all(not(feature = "opcat_layer"), not(feature = "opcat_layer")))]
     pub fn get_merkleblock_proof(&self, txid: &Txid) -> Option<MerkleBlock> {
         let _timer = self.start_timer("get_merkleblock_proof");
         let blockid = self.tx_confirming_block(txid)?;
@@ -1331,26 +1323,6 @@ impl ChainQuery {
         ))
     }
 
-    #[cfg(feature = "liquid")]
-    pub fn asset_history<'a>(
-        &'a self,
-        asset_id: &'a AssetId,
-        last_seen_txid: Option<&'a Txid>,
-        limit: usize,
-    ) -> impl rayon::iter::ParallelIterator<Item = Result<(Transaction, BlockId, u16)>> + 'a {
-        self._history(
-            b'I',
-            &asset_id.into_inner()[..],
-            last_seen_txid,
-            None,
-            limit,
-        )
-    }
-
-    #[cfg(feature = "liquid")]
-    pub fn asset_history_txids(&self, asset_id: &AssetId, limit: usize) -> Vec<(Txid, BlockId)> {
-        self._history_txids(b'I', &asset_id.into_inner()[..], limit)
-    }
 }
 
 fn load_blockhashes(db: &DB, prefix: &[u8]) -> HashSet<BlockHash> {
@@ -1607,17 +1579,17 @@ fn index_transaction(
         rows.push(edge.into_row());
     }
 
-    // Index issued assets & native asset pegins/pegouts/burns
-    #[cfg(feature = "liquid")]
-    asset::index_confirmed_tx_assets(
-        tx,
-        confirmed_height,
-        tx_position,
-        iconfig.network,
-        iconfig.parent_network,
-        rows,
-        op,
-    );
+    // // Index issued assets & native asset pegins/pegouts/burns
+    // #[cfg(feature = "opcat_layer")]
+    // asset::index_confirmed_tx_assets(
+    //     tx,
+    //     confirmed_height,
+    //     tx_position,
+    //     iconfig.network,
+    //     iconfig.parent_network,
+    //     rows,
+    //     op,
+    // );
 }
 
 fn addr_search_row(spk: &Script, network: Network) -> Option<DBRow> {
@@ -1861,14 +1833,14 @@ pub enum TxHistoryInfo {
     Spending(SpendingInfo),
     Funding(FundingInfo),
 
-    #[cfg(feature = "liquid")]
-    Issuing(asset::IssuingInfo),
-    #[cfg(feature = "liquid")]
-    Burning(asset::BurningInfo),
-    #[cfg(feature = "liquid")]
-    Pegin(peg::PeginInfo),
-    #[cfg(feature = "liquid")]
-    Pegout(peg::PegoutInfo),
+    // #[cfg(feature = "opcat_layer")]
+    // Issuing(asset::IssuingInfo),
+    // #[cfg(feature = "opcat_layer")]
+    // Burning(asset::BurningInfo),
+    // #[cfg(feature = "opcat_layer")]
+    // Pegin(peg::PeginInfo),
+    // #[cfg(feature = "opcat_layer")]
+    // Pegout(peg::PegoutInfo),
 }
 
 impl TxHistoryInfo {
@@ -1877,11 +1849,11 @@ impl TxHistoryInfo {
             TxHistoryInfo::Funding(FundingInfo { txid, .. })
             | TxHistoryInfo::Spending(SpendingInfo { txid, .. }) => deserialize(txid),
 
-            #[cfg(feature = "liquid")]
-            TxHistoryInfo::Issuing(asset::IssuingInfo { txid, .. })
-            | TxHistoryInfo::Burning(asset::BurningInfo { txid, .. })
-            | TxHistoryInfo::Pegin(peg::PeginInfo { txid, .. })
-            | TxHistoryInfo::Pegout(peg::PegoutInfo { txid, .. }) => deserialize(txid),
+            // #[cfg(feature = "opcat_layer")]
+            // TxHistoryInfo::Issuing(asset::IssuingInfo { txid, .. })
+            // | TxHistoryInfo::Burning(asset::BurningInfo { txid, .. })
+            // | TxHistoryInfo::Pegin(peg::PeginInfo { txid, .. })
+            // | TxHistoryInfo::Pegout(peg::PegoutInfo { txid, .. }) => deserialize(txid),
         }
         .expect("cannot parse Txid")
     }
@@ -1891,11 +1863,11 @@ impl TxHistoryInfo {
             TxHistoryInfo::Funding(FundingInfo { vout: val, .. })
             | TxHistoryInfo::Spending(SpendingInfo { vin: val, .. }) => *val,
 
-            #[cfg(feature = "liquid")]
-            TxHistoryInfo::Issuing(asset::IssuingInfo { vin: val, .. })
-            | TxHistoryInfo::Burning(asset::BurningInfo { vout: val, .. })
-            | TxHistoryInfo::Pegin(peg::PeginInfo { vin: val, .. })
-            | TxHistoryInfo::Pegout(peg::PegoutInfo { vout: val, .. }) => *val,
+            // #[cfg(feature = "opcat_layer")]
+            // TxHistoryInfo::Issuing(asset::IssuingInfo { vin: val, .. })
+            // | TxHistoryInfo::Burning(asset::BurningInfo { vout: val, .. })
+            // | TxHistoryInfo::Pegin(peg::PeginInfo { vin: val, .. })
+            // | TxHistoryInfo::Pegout(peg::PegoutInfo { vout: val, .. }) => *val,
         }
     }
 
@@ -1904,10 +1876,10 @@ impl TxHistoryInfo {
             TxHistoryInfo::Funding(_) => false,
             TxHistoryInfo::Spending(_) => true,
 
-            #[cfg(feature = "liquid")]
-            TxHistoryInfo::Issuing(_) | TxHistoryInfo::Pegin(_) => true,
-            #[cfg(feature = "liquid")]
-            TxHistoryInfo::Burning(_) | TxHistoryInfo::Pegout(_) => false,
+            // #[cfg(feature = "opcat_layer")]
+            // TxHistoryInfo::Issuing(_) | TxHistoryInfo::Pegin(_) => true,
+            // #[cfg(feature = "opcat_layer")]
+            // TxHistoryInfo::Burning(_) | TxHistoryInfo::Pegout(_) => false,
         }
     }
 }
@@ -2000,11 +1972,11 @@ impl TxHistoryInfo {
                 txid: deserialize(&info.prev_txid).unwrap(),
                 vout: info.prev_vout,
             },
-            #[cfg(feature = "liquid")]
-            TxHistoryInfo::Issuing(_)
-            | TxHistoryInfo::Burning(_)
-            | TxHistoryInfo::Pegin(_)
-            | TxHistoryInfo::Pegout(_) => unreachable!(),
+            // #[cfg(feature = "opcat_layer")]
+            // TxHistoryInfo::Issuing(_)
+            // | TxHistoryInfo::Burning(_)
+            // | TxHistoryInfo::Pegin(_)
+            // | TxHistoryInfo::Pegout(_) => unreachable!(),
         }
     }
 }
@@ -2162,7 +2134,7 @@ fn from_utxo_cache(utxos_cache: CachedUtxoMap, chain: &ChainQuery) -> UtxoMap {
         .collect()
 }
 
-#[cfg(all(test, feature = "liquid"))]
+#[cfg(all(test, feature = "opcat_layer"))]
 mod tests {
     use super::{DBRow, TxHistoryRow};
     use crate::chain::Value;
@@ -2190,12 +2162,8 @@ mod tests {
                    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
                 // vout
                 0, 0, 0, 3,
-                // Value variant (Explicit)
+                // Value
                 0, 0, 0, 0, 0, 0, 0, 2,
-                // number of tuple elements
-                1,
-                // Inner value (u64)
-                7, 0, 0, 0, 0, 0, 0, 0,
             ],
             vec![
                 72,
@@ -2207,10 +2175,8 @@ mod tests {
                 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
                    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
                 0, 0, 0, 3,
-                // Value variant (Null)
-                0, 0, 0, 0, 0, 0, 0, 1,
-                // number of tuple elements
-                0,
+                // Value
+                0, 0, 0, 0, 0, 0, 0, 0,
             ],
             vec![
                 72,
@@ -2225,9 +2191,7 @@ mod tests {
                 98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102,
                     98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102,
                 0, 0, 0, 9,
-                0, 0, 0, 0, 0, 0, 0, 2,
-                1,
-                14, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 14,
             ],
             vec![
                 72,
@@ -2242,8 +2206,7 @@ mod tests {
                 98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102,
                     98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102, 98, 101, 101, 102,
                 0, 0, 0, 9,
-                0, 0, 0, 0, 0, 0, 0, 1,
-                0,
+                0, 0, 0, 0, 0, 0, 0, 0,
             ],
         ];
         let expected = [
@@ -2256,7 +2219,7 @@ mod tests {
                     txinfo: super::TxHistoryInfo::Funding(super::FundingInfo {
                         txid: [2; 32],
                         vout: 3,
-                        value: Value::Explicit(7),
+                        value: Value::from_sat(2),
                     }),
                 },
             },
@@ -2269,7 +2232,7 @@ mod tests {
                     txinfo: super::TxHistoryInfo::Funding(super::FundingInfo {
                         txid: [2; 32],
                         vout: 3,
-                        value: Value::Null,
+                        value: Value::from_sat(0),
                     }),
                 },
             },
@@ -2284,7 +2247,7 @@ mod tests {
                         vin: 12,
                         prev_txid: "beef".repeat(8).as_bytes().try_into().unwrap(),
                         prev_vout: 9,
-                        value: Value::Explicit(14),
+                        value: Value::from_sat(14),
                     }),
                 },
             },
@@ -2299,7 +2262,7 @@ mod tests {
                         vin: 12,
                         prev_txid: "beef".repeat(8).as_bytes().try_into().unwrap(),
                         prev_vout: 9,
-                        value: Value::Null,
+                        value: Value::from_sat(0),
                     }),
                 },
             },

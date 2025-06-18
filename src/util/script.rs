@@ -1,13 +1,6 @@
-#[cfg(feature = "liquid")]
-use elements::address as elements_address;
 
-use crate::chain::{script, Network, Script, TxIn, TxOut};
-use script::Instruction::PushBytes;
-
-pub struct InnerScripts {
-    pub redeem_script: Option<Script>,
-    pub witness_script: Option<Script>,
-}
+use crate::chain::{Network, Script, TxIn, TxOut};
+use bitcoin::blockdata::script::Instruction;
 
 pub trait ScriptToAsm: std::fmt::Debug {
     fn to_asm(&self) -> String {
@@ -15,24 +8,20 @@ pub trait ScriptToAsm: std::fmt::Debug {
         asm[7..asm.len() - 1].to_string()
     }
 }
-impl ScriptToAsm for bitcoin::Script {}
-#[cfg(feature = "liquid")]
-impl ScriptToAsm for elements::Script {}
 
 pub trait ScriptToAddr {
     fn to_address_str(&self, network: Network) -> Option<String>;
 }
-#[cfg(not(feature = "liquid"))]
+
+pub struct InnerScripts {
+    pub redeem_script: Option<Script>,
+    pub witness_script: Option<Script>,
+}
+impl ScriptToAsm for bitcoin::Script {}
+
 impl ScriptToAddr for bitcoin::Script {
     fn to_address_str(&self, network: Network) -> Option<String> {
         bitcoin::Address::from_script(self, network.into()).map(|s| s.to_string())
-    }
-}
-#[cfg(feature = "liquid")]
-impl ScriptToAddr for elements::Script {
-    fn to_address_str(&self, network: Network) -> Option<String> {
-        elements_address::Address::from_script(self, None, network.address_params())
-            .map(|a| a.to_string())
     }
 }
 
@@ -40,7 +29,7 @@ impl ScriptToAddr for elements::Script {
 pub fn get_innerscripts(txin: &TxIn, prevout: &TxOut) -> InnerScripts {
     // Wrapped redeemScript for P2SH spends
     let redeem_script = if prevout.script_pubkey.is_p2sh() {
-        if let Some(Ok(PushBytes(redeemscript))) = txin.script_sig.instructions().last() {
+        if let Some(Ok(Instruction::PushBytes(redeemscript))) = txin.script_sig.instructions().last() {
             Some(Script::from(redeemscript.to_vec()))
         } else {
             None
@@ -49,19 +38,20 @@ pub fn get_innerscripts(txin: &TxIn, prevout: &TxOut) -> InnerScripts {
         None
     };
 
+    #[cfg(not(feature = "opcat_layer"))]
     // Wrapped witnessScript for P2WSH or P2SH-P2WSH spends
     let witness_script = if prevout.script_pubkey.is_v0_p2wsh()
         || prevout.script_pubkey.is_v1_p2tr()
         || redeem_script.as_ref().map_or(false, |s| s.is_v0_p2wsh())
     {
         let witness = &txin.witness;
-        #[cfg(feature = "liquid")]
+        #[cfg(feature = "opcat_layer")]
         let witness = &witness.script_witness;
 
         // rust-bitcoin returns witness items as a [u8] slice, while rust-elements returns a Vec<u8>
-        #[cfg(not(feature = "liquid"))]
+        #[cfg(not(feature = "opcat_layer"))]
         let wit_to_vec = Vec::from;
-        #[cfg(feature = "liquid")]
+        #[cfg(feature = "opcat_layer")]
         let wit_to_vec = Clone::clone;
 
         let inner_script_slice = if prevout.script_pubkey.is_v1_p2tr() {
@@ -100,6 +90,9 @@ pub fn get_innerscripts(txin: &TxIn, prevout: &TxOut) -> InnerScripts {
     } else {
         None
     };
+
+    #[cfg(feature = "opcat_layer")]
+    let witness_script = None;
 
     InnerScripts {
         redeem_script,

@@ -1,10 +1,10 @@
 extern crate electrs;
 
-#[cfg(not(feature = "liquid"))]
+// #[cfg(not(feature = "opcat_layer"))]
 #[macro_use]
 extern crate log;
 
-#[cfg(not(feature = "liquid"))]
+// #[cfg(not(feature = "opcat_layer"))]
 fn main() {
     use std::collections::HashSet;
     use std::sync::Arc;
@@ -91,11 +91,28 @@ fn main() {
                 .collect(),
         );
 
+        #[cfg(feature = "opcat_layer")]
+        let total_out: u64 = tx.output.iter().map(|out| out.value.as_sat()).sum();
+        #[cfg(feature = "opcat_layer")]
+        let small_out = tx.output.iter().map(|out| out.value.as_sat()).min().unwrap();
+        #[cfg(feature = "opcat_layer")]
+        let large_out = tx.output.iter().map(|out| out.value.as_sat()).max().unwrap();
+        
+        #[cfg(not(feature = "opcat_layer"))]
         let total_out: u64 = tx.output.iter().map(|out| out.value).sum();
+        #[cfg(not(feature = "opcat_layer"))]
         let small_out = tx.output.iter().map(|out| out.value).min().unwrap();
+        #[cfg(not(feature = "opcat_layer"))]
         let large_out = tx.output.iter().map(|out| out.value).max().unwrap();
 
+        #[cfg(feature = "opcat_layer")]
+        let total_in: u64 = prevouts.values().map(|out| out.value.as_sat()).sum();
+        #[cfg(feature = "opcat_layer")]
+        let smallest_in = prevouts.values().map(|out| out.value.as_sat()).min().unwrap();
+        
+        #[cfg(not(feature = "opcat_layer"))]
         let total_in: u64 = prevouts.values().map(|out| out.value).sum();
+        #[cfg(not(feature = "opcat_layer"))]
         let smallest_in = prevouts.values().map(|out| out.value).min().unwrap();
 
         let fee = total_in - total_out;
@@ -142,5 +159,3 @@ fn main() {
     );
 }
 
-#[cfg(feature = "liquid")]
-fn main() {}

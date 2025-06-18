@@ -50,8 +50,8 @@ jobs:
         features: [
           '',
           '-F electrum-discovery',
-          '-F liquid',
-          '-F electrum-discovery,liquid',
+          '-F opcat_layer',
+          '-F electrum-discovery,opcat_layer',
         ]
     steps:
       - uses: actions/checkout@v3

@@ -7,7 +7,7 @@ FEATURES=default
 DB_FOLDER=/electrs
 NODENAME=$(hostname|cut -d . -f1)
 LOCATION=$(hostname|cut -d . -f2)
-USAGE="Usage: $0 (mainnet|testnet|signet|liquid|liquidtestnet) [popular-scripts]"
+USAGE="Usage: $0 (mainnet|testnet|signet|opcat_layer|liquidtestnet) [popular-scripts]"
 
 # load rust if necessary
 if [ -e "${HOME}/.cargo/env" ];then
@@ -60,17 +60,17 @@ case "${1}" in
 		THREADS=$((NPROC / 6))
 		CRONJOB_TIMING="9 4 * * *"
 	;;
-	liquid)
+	opcat_layer)
 		DAEMON=elements
-		NETWORK=liquid
-		FEATURES=liquid
+		NETWORK=opcat_layer
+		FEATURES=opcat_layer
 		THREADS=$((NPROC / 6))
 		CRONJOB_TIMING="12 4 * * *"
 	;;
 	liquidtestnet)
 		DAEMON=elements
 		NETWORK=liquidtestnet
-		FEATURES=liquid
+		FEATURES=opcat_layer
 		THREADS=$((NPROC / 6))
 		CRONJOB_TIMING="17 4 * * *"
 	;;
