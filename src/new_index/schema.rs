@@ -133,9 +133,7 @@ pub struct ScriptStats {
     pub tx_count: usize,
     pub funded_txo_count: usize,
     pub spent_txo_count: usize,
-    #[cfg(not(feature = "opcat_layer"))]
     pub funded_txo_sum: u64,
-    #[cfg(not(feature = "opcat_layer"))]
     pub spent_txo_sum: u64,
 }
 

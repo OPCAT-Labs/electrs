@@ -514,17 +514,7 @@ impl Daemon {
     }
 
     fn getmempoolinfo(&self) -> Result<MempoolInfo> {
-        let mut info: Value = self.request("getmempoolinfo", json!([]))?;
-
-        // The `loaded` field is not present in bitcoind < 0.21.0, so we
-        // add `loaded = true`.
-        // TODO: add this field in nodes
-        if let Some(info_obj) = info.as_object_mut() {
-        if !info_obj.contains_key("loaded") {
-                info_obj.insert("loaded".to_string(), Value::Bool(true));
-            }
-        }
-
+        let info: Value = self.request("getmempoolinfo", json!([]))?;
         from_value(info).chain_err(|| "invalid mempool info")
     }
 
