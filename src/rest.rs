@@ -377,13 +377,10 @@ struct UtxoValue {
     txid: Txid,
     vout: u32,
     status: TransactionStatus,
-
-    #[cfg(not(feature = "opcat_layer"))]
     value: u64,
 
     #[cfg(feature = "opcat_layer")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    value: Option<u64>,
+    data: String,
 
 }
 impl From<Utxo> for UtxoValue {
@@ -392,13 +389,10 @@ impl From<Utxo> for UtxoValue {
             txid: utxo.txid,
             vout: utxo.vout,
             status: TransactionStatus::from(utxo.confirmed),
-
-            #[cfg(all(not(feature = "opcat_layer")))]
-            value: utxo.value,
+            value: utxo.value.into(),
 
             #[cfg(feature = "opcat_layer")]
-            value: Some(utxo.value.as_sat()),
-
+            data: utxo.data.to_hex(),
         }
     }
 }

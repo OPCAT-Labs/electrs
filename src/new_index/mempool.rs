@@ -244,7 +244,8 @@ impl Mempool {
                         vout: info.vout,
                         value: info.value,
                         confirmed: None,
-                        
+                        #[cfg(feature = "opcat_layer")]
+                        data: txo.data,
                     })
                 }
                 TxHistoryInfo::Spending(_) => None,

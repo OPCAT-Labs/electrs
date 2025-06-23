@@ -104,12 +104,8 @@ pub struct Utxo {
     pub confirmed: Option<BlockId>,
     pub value: Value,
 
-    // #[cfg(feature = "opcat_layer")]
-    // pub asset: elements::confidential::Asset,
-    // #[cfg(feature = "opcat_layer")]
-    // pub nonce: elements::confidential::Nonce,
-    // #[cfg(feature = "opcat_layer")]
-    // pub witness: elements::TxOutWitness,
+    #[cfg(feature = "opcat_layer")]
+    pub data: Vec<u8>,
 }
 
 impl From<&Utxo> for OutPoint {
@@ -947,12 +943,8 @@ impl ChainQuery {
                     value,
                     confirmed: Some(blockid),
 
-                    // #[cfg(feature = "opcat_layer")]
-                    // asset: txo.asset,
-                    // #[cfg(feature = "opcat_layer")]
-                    // nonce: txo.nonce,
-                    // #[cfg(feature = "opcat_layer")]
-                    // witness: txo.witness,
+                    #[cfg(feature = "opcat_layer")]
+                    data: txo.data,
                 }
             })
             .collect())
@@ -1074,33 +1066,25 @@ impl ChainQuery {
             }
 
             match history.key.txinfo {
-                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Funding(ref info) => {
                     stats.funded_txo_count += 1;
                     stats.funded_txo_sum += info.value;
                 }
 
-                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Spending(ref info) => {
                     stats.spent_txo_count += 1;
                     stats.spent_txo_sum += info.value;
                 }
 
-                #[cfg(feature = "opcat_layer")]
-                TxHistoryInfo::Funding(_) => {
-                    stats.funded_txo_count += 1;
-                }
-
-                #[cfg(feature = "opcat_layer")]
-                TxHistoryInfo::Spending(_) => {
-                    stats.spent_txo_count += 1;
-                }
+                // #[cfg(feature = "opcat_layer")]
+                // TxHistoryInfo::Funding(_) => {
+                //     stats.funded_txo_count += 1;
+                // }
 
                 // #[cfg(feature = "opcat_layer")]
-                // TxHistoryInfo::Issuing(_)
-                // | TxHistoryInfo::Burning(_)
-                // | TxHistoryInfo::Pegin(_)
-                // | TxHistoryInfo::Pegout(_) => unreachable!(),
+                // TxHistoryInfo::Spending(_) => {
+                //     stats.spent_txo_count += 1;
+                // }
             }
 
             lastblock = Some(blockid.hash);

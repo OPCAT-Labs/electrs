@@ -350,13 +350,12 @@ impl Connection {
                 "value": utxo.value,
             });
 
-            // #[cfg(feature = "opcat_layer")]
-            // let json = {
-            //     let mut json = json;
-            //     json["asset"] = json!(utxo.asset);
-            //     json["nonce"] = json!(utxo.nonce);
-            //     json
-            // };
+            #[cfg(feature = "opcat_layer")]
+            let json = {
+                let mut json = json;
+                json["data"] = json!(utxo.data);
+                json
+            };
 
             json
         };
