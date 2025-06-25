@@ -33,9 +33,16 @@ Each transaction results in the following new rows:
 
  * `"C{txid}{confirmed-blockhash}" → ""` (a list of blockhashes where `txid` was seen to be confirmed)
 
-Each output results in the following new row:
+Each output results in the following new row according to its locking script length:
 
- * `"O{txid}{vout}" → "{scriptpubkey}{value}"`
+1. For those script size less or equal than 32 bytes:
+ * `"O{txid}{vout}" → "{value}{scriptpubkey_len}{scriptpubkey}{data_len}{data}"`
+
+2. For those script size greater than 32 bytes, it would have two rows:
+
+* `"O{txid}{vout}" → "{value}00{scripthash}{data_len}{data}"`
+
+ * `"S{scripthash}" → "scriptpubkey"`
 
 When the indexer is synced up to the tip of the chain, the hash of the tip is saved as following:
 

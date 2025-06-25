@@ -1,3 +1,4 @@
+use bitcoin::consensus::{Decodable, Encodable};
 use bitcoin::hashes::sha256d::Hash as Sha256dHash;
 #[cfg(not(feature = "opcat_layer"))]
 use bitcoin::util::merkleblock::MerkleBlock;
@@ -5,6 +6,7 @@ use bitcoin::VarInt;
 use itertools::Itertools;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
+use bitcoin::hashes::sha256;
 
 #[cfg(not(feature = "opcat_layer"))]
 use bitcoin::consensus::encode::{deserialize, serialize};
@@ -14,6 +16,7 @@ use crate::opcat_layer::consensus::encode::{deserialize, serialize};
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryInto;
+use std::io;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
@@ -1372,7 +1375,13 @@ fn add_transaction(
     let txid = full_hash(&tx.txid()[..]);
     for (txo_index, txo) in tx.output.iter().enumerate() {
         if is_spendable(txo) {
-            rows.push(TxOutRow::new(&txid, txo_index, txo).into_row());
+            let txo_row = TxOutRow::new(&txid, txo_index, txo);
+            let has_script_ref = txo_row.has_script_ref();
+            rows.push(txo_row.into_row());
+            if has_script_ref {
+                let (script_row, _) = ScriptRow::new(&txo.script_pubkey);
+                rows.push(script_row.into_row());
+            }
         }
     }
 }
@@ -1453,8 +1462,48 @@ fn lookup_txos_sequential(
 
 fn lookup_txo(txstore_db: &DB, outpoint: &OutPoint) -> Option<TxOut> {
     txstore_db
-        .get(&TxOutRow::key(outpoint))
-        .map(|val| deserialize(&val).expect("failed to parse TxOut"))
+        .get(&TxOutRow::get_key(outpoint))
+        .and_then(|val| {
+            // Try to parse as HybridTxOut first (new format)
+            if let Ok(hybrid_txout) = deserialize::<HybridTxOut>(&val) {
+                let script = match hybrid_txout.script_storage {
+                    ScriptStorage::Inline(script_bytes) => {
+                        Script::from(script_bytes)
+                    }
+                    ScriptStorage::Reference(script_hash) => {
+                        let script_key = ScriptRow::key(&script_hash);
+                        txstore_db.get(&script_key)?
+                            .into_iter()
+                            .collect::<Vec<u8>>()
+                            .into()
+                    }
+                };
+                
+                #[cfg(not(feature = "opcat_layer"))]
+                let txout = TxOut {
+                    value: hybrid_txout.value,
+                    script_pubkey: script,
+                };
+                
+                #[cfg(feature = "opcat_layer")]
+                let txout = TxOut {
+                    value: hybrid_txout.value,
+                    script_pubkey: script,
+                    data: hybrid_txout.data,
+                };
+                
+                Some(txout)
+            } else {
+                // Fallback to legacy TxOut format for backward compatibility
+                match deserialize::<TxOut>(&val) {
+                    Ok(txout) => Some(txout),
+                    Err(e) => {
+                        warn!("Failed to parse TxOut data for outpoint {}: {}", outpoint, e);
+                        None
+                    }
+                }
+            }
+        })
 }
 
 fn index_blocks(
@@ -1675,33 +1724,134 @@ impl TxConfRow {
 }
 
 #[derive(Serialize, Deserialize)]
+struct ScriptKey {
+    code: u8,
+    script_hash: [u8; 32],
+}
+
+struct ScriptRow {
+    key: ScriptKey,
+    value: Bytes, // script bytes
+}
+
+// Script deduplication threshold - scripts larger than this are stored in dedup table
+const SCRIPT_DEDUP_THRESHOLD: usize = 32;
+
+#[derive(Serialize, Deserialize)]
 struct TxOutKey {
     code: u8,
     txid: FullHash,
     vout: u32,
 }
 
-struct TxOutRow {
-    key: TxOutKey,
-    value: Bytes, // serialized output
+struct HybridTxOut {
+    value: Value,
+    script_storage: ScriptStorage,
+    #[cfg(feature = "opcat_layer")]
+    data: Bytes, // OPCAT Layer specific data field
 }
 
-impl TxOutRow {
-    fn new(txid: &FullHash, vout: usize, txout: &TxOut) -> TxOutRow {
-        TxOutRow {
-            key: TxOutKey {
-                code: b'O',
-                txid: *txid,
-                vout: vout as u32,
-            },
-            value: serialize(txout),
+impl Encodable for HybridTxOut {
+    fn consensus_encode<W: io::Write>(&self, mut writer: W) -> std::result::Result<usize, io::Error> {
+        let mut len = 0;
+        len += self.value.consensus_encode(&mut writer)?;
+        len += self.script_storage.consensus_encode(&mut writer)?;
+
+        #[cfg(feature = "opcat_layer")]
+        {
+            len += self.data.consensus_encode(&mut writer)?;
+        }
+
+        Ok(len)
+    }
+}
+
+impl Decodable for HybridTxOut {
+    fn consensus_decode<R: io::Read>(mut reader: R) -> std::result::Result<Self, bitcoin::consensus::encode::Error> {
+        let value: Value = Decodable::consensus_decode(&mut reader)?;
+        let script_storage: ScriptStorage = Decodable::consensus_decode(&mut reader)?;
+        #[cfg(feature = "opcat_layer")]
+        let data: Bytes = Decodable::consensus_decode(&mut reader)?;
+
+        Ok(HybridTxOut {
+            value,
+            script_storage,
+            #[cfg(feature = "opcat_layer")]
+            data,
+        })
+    }
+}
+
+enum ScriptStorage {
+    Inline(Bytes),           // script_len + script_bytes for scripts <= 32 bytes
+    Reference([u8; 32]),     // script_hash for scripts > 32 bytes
+}
+
+impl Encodable for ScriptStorage {
+    fn consensus_encode<W: io::Write>(&self, mut writer: W) -> std::result::Result<usize, io::Error> {
+        let mut len = 0;
+        match self {
+            ScriptStorage::Inline(script_bytes) => {
+                // tag 0 for inline script
+                len += 0u8.consensus_encode(&mut writer)?;
+                len += script_bytes.consensus_encode(&mut writer)?;
+            }
+            ScriptStorage::Reference(script_hash) => {
+                // tag 1 for script reference
+                len += 1u8.consensus_encode(&mut writer)?;
+                len += script_hash.consensus_encode(&mut writer)?;
+            }
+        }
+        Ok(len)
+    }
+}
+
+impl Decodable for ScriptStorage {
+    fn consensus_decode<R: io::Read>(mut reader: R) -> std::result::Result<Self, bitcoin::consensus::encode::Error> {
+        let tag: u8 = Decodable::consensus_decode(&mut reader)?;
+        match tag {
+            0 => {
+                let script_len = VarInt::consensus_decode(&mut reader)?.0 as usize;
+                let mut script_bytes = vec![0u8; script_len];
+                reader.read_exact(&mut script_bytes)?;
+                Ok(ScriptStorage::Inline(script_bytes))
+            }
+            1 => {
+                let script_hash: [u8; 32] = Decodable::consensus_decode(&mut reader)?;
+                Ok(ScriptStorage::Reference(script_hash))
+            }
+            _ => Err(bitcoin::consensus::encode::Error::ParseFailed("Invalid ScriptStorage tag"))
         }
     }
-    fn key(outpoint: &OutPoint) -> Bytes {
-        bincode_util::serialize_little(&TxOutKey {
-            code: b'O',
-            txid: full_hash(&outpoint.txid[..]),
-            vout: outpoint.vout,
+}
+
+struct TxOutRow {
+    key: TxOutKey,
+    value: HybridTxOut,
+}
+
+impl ScriptRow {
+    fn new(script: &Script) -> (ScriptRow, [u8; 32]) {
+        let script_hash = Self::hash_script(script);
+        let row = ScriptRow {
+            key: ScriptKey {
+                code: b'S',
+                script_hash,
+            },
+            value: script.as_bytes().to_vec(),
+        };
+        (row, script_hash)
+    }
+
+    fn hash_script(script: &Script) -> [u8; 32] {
+        use bitcoin::hashes::Hash;
+        sha256::Hash::hash(script.as_bytes()).into_inner()
+    }
+
+    fn key(script_hash: &[u8; 32]) -> Bytes {
+        bincode_util::serialize_little(&ScriptKey {
+            code: b'S',
+            script_hash: *script_hash,
         })
         .unwrap()
     }
@@ -1710,6 +1860,54 @@ impl TxOutRow {
         DBRow {
             key: bincode_util::serialize_little(&self.key).unwrap(),
             value: self.value,
+        }
+    }
+}
+
+
+impl TxOutRow {
+    fn new(txid: &FullHash, vout: usize, txout: &TxOut) -> TxOutRow {
+        let script_storage = if txout.script_pubkey.len() <= SCRIPT_DEDUP_THRESHOLD {
+            ScriptStorage::Inline(txout.script_pubkey.as_bytes().to_vec())
+        } else {
+            let script_hash = ScriptRow::hash_script(&txout.script_pubkey);
+            ScriptStorage::Reference(script_hash)
+        };
+
+        let hybrid_txout = HybridTxOut {
+            value: txout.value,
+            script_storage,
+            #[cfg(feature = "opcat_layer")]
+            data: txout.data.clone(),
+        };
+
+        TxOutRow {
+            key: TxOutKey {
+                code: b'O',
+                txid: *txid,
+                vout: vout as u32,
+            },
+            value: hybrid_txout,
+        }
+    }
+
+    fn get_key(outpoint: &OutPoint) -> Bytes {
+        bincode_util::serialize_little(&TxOutKey {
+            code: b'O',
+            txid: full_hash(&outpoint.txid[..]),
+            vout: outpoint.vout,
+        })
+        .unwrap()
+    }
+
+    fn has_script_ref(&self) -> bool {
+        matches!(self.value.script_storage, ScriptStorage::Reference(_))
+    }
+
+    fn into_row(self) -> DBRow {
+        DBRow {
+            key: bincode_util::serialize_little(&self.key).unwrap(),
+            value: serialize(&self.value),
         }
     }
 }
