@@ -40,7 +40,7 @@ Each output results in the following new row according to its locking script len
 
 2. For those script size greater than 32 bytes, it would have two rows:
 
-* `"O{txid}{vout}" → "{value}00{scripthash}{data_len}{data}"`
+* `"O{txid}{vout}" → "{value}{flag:0|1}{script_pubkey|scripthash}{data_len}{data}"`
 
  * `"S{scripthash}" → "scriptpubkey"`
 
