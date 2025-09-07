@@ -272,28 +272,15 @@ impl Mempool {
             }
 
             match entry {
-                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Funding(info) => {
                     stats.funded_txo_count += 1;
                     stats.funded_txo_sum += info.value;
                 }
 
-                #[cfg(not(feature = "opcat_layer"))]
                 TxHistoryInfo::Spending(info) => {
                     stats.spent_txo_count += 1;
                     stats.spent_txo_sum += info.value;
                 }
-
-                // Elements
-                #[cfg(feature = "opcat_layer")]
-                TxHistoryInfo::Funding(_) => {
-                    stats.funded_txo_count += 1;
-                }
-                #[cfg(feature = "opcat_layer")]
-                TxHistoryInfo::Spending(_) => {
-                    stats.spent_txo_count += 1;
-                }
-                
             };
         }
 
