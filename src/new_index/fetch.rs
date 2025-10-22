@@ -68,7 +68,7 @@ pub fn bitcoind_sequential_fetcher(
     let daemon = daemon.reconnect()?;
     Ok(SequentialFetcher::from(move || {
         new_headers
-            .chunks(100)
+            .chunks(10)
             .map(|entries| {
                 let blockhashes: Vec<BlockHash> = entries.iter().map(|e| *e.hash()).collect();
                 let blocks = daemon
@@ -125,7 +125,7 @@ fn bitcoind_fetcher(
     Ok(Fetcher::from(
         chan.into_receiver(),
         spawn_thread("bitcoind_fetcher", move || {
-            for entries in new_headers.chunks(100) {
+            for entries in new_headers.chunks(10) {
                 let blockhashes: Vec<BlockHash> = entries.iter().map(|e| *e.hash()).collect();
                 let blocks = daemon
                     .getblocks(&blockhashes)

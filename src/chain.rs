@@ -13,7 +13,8 @@ pub use bitcoin::{
 pub use crate::opcat_layer::{
     hashes, address, blockdata::{script, opcodes},
     Address, Block, BlockHash, BlockHeader, OutPoint, Script, 
-    Transaction, TxIn, TxOut, Txid
+    Transaction, TxIn, TxOut, Txid,
+    FEE_RATE,
 };
 
 use bitcoin::blockdata::constants::genesis_block;

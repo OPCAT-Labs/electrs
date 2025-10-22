@@ -6,5 +6,7 @@ pub use bitcoin::consensus::encode::{
     serialize_hex, 
     ReadExt, WriteExt,
     Error, 
-    MAX_VEC_SIZE,
 };
+
+/// Maximum size, in bytes, of a vector we are allowed to decode, related to the block size limit.
+pub const MAX_VEC_SIZE: usize = 2 * 32_000_000; // 2x the current max block size

@@ -4,7 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::{Duration, Instant};
 
-use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid};
+use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid, FEE_RATE};
 use crate::config::Config;
 use crate::daemon::{Daemon, MempoolAcceptResult, SubmitPackageResult};
 use crate::errors::*;
@@ -190,6 +190,10 @@ impl Query {
         if self.config.network_type.is_regtest() {
             return self.get_relayfee().ok();
         }
+
+        #[cfg(feature = "opcat_layer")]
+        return Some(FEE_RATE);
+
         if let (ref cache, Some(cache_time)) = *self.cached_estimates.read().unwrap() {
             if cache_time.elapsed() < Duration::from_secs(FEE_ESTIMATES_TTL) {
                 return cache.get(&conf_target).copied();
@@ -206,6 +210,9 @@ impl Query {
     }
 
     pub fn estimate_fee_map(&self) -> HashMap<u16, f64> {
+        #[cfg(feature = "opcat_layer")]
+        return HashMap::from([(1, FEE_RATE)]);
+
         if let (ref cache, Some(cache_time)) = *self.cached_estimates.read().unwrap() {
             if cache_time.elapsed() < Duration::from_secs(FEE_ESTIMATES_TTL) {
                 return cache.clone();
@@ -217,6 +224,7 @@ impl Query {
     }
 
     fn update_fee_estimates(&self) {
+        #[cfg(not(feature = "opcat_layer"))]
         match self.daemon.estimatesmartfee_batch(&CONF_TARGETS) {
             Ok(estimates) => {
                 *self.cached_estimates.write().unwrap() = (estimates, Some(Instant::now()));

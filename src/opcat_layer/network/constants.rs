@@ -5,3 +5,5 @@ pub enum Network {
     Testnet,
     Regtest
 }
+
+pub const FEE_RATE: f64 = 0.0000001; // const fee rate for opcat layer network, in BTC/kB
