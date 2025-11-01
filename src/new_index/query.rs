@@ -99,15 +99,27 @@ impl Query {
         self.daemon.submit_package(txhex, maxfeerate, maxburnamount)
     }
 
-    pub fn utxo(&self, scripthash: &[u8]) -> Result<Vec<Utxo>> {
+    pub fn utxo(
+        &self,
+        scripthash: &[u8],
+        after_outpoint: Option<&OutPoint>,
+        limit: usize,
+    ) -> Result<Vec<Utxo>> {
         let mut utxos = self.chain.utxo(
             scripthash,
-            self.config.utxos_limit,
+            after_outpoint,
+            limit,
             super::db::DBFlush::Enable,
         )?;
         let mempool = self.mempool();
         utxos.retain(|utxo| !mempool.has_spend(&OutPoint::from(utxo)));
-        utxos.extend(mempool.utxo(scripthash));
+
+        // Add mempool UTXOs if we haven't reached the limit
+        if utxos.len() < limit {
+            let mempool_utxos = mempool.utxo(scripthash, after_outpoint, limit - utxos.len());
+            utxos.extend(mempool_utxos);
+        }
+
         Ok(utxos)
     }
 

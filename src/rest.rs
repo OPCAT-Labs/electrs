@@ -458,6 +458,27 @@ fn find_txid(
     }
 }
 
+enum OutPointLocation {
+    Mempool,
+    Chain(u32), // contains height
+    None,
+}
+
+#[inline]
+fn find_outpoint(
+    outpoint: &OutPoint,
+    mempool: &crate::new_index::Mempool,
+    chain: &crate::new_index::ChainQuery,
+) -> OutPointLocation {
+    if mempool.lookup_txo(outpoint).is_some() {
+        OutPointLocation::Mempool
+    } else if let Some(block) = chain.tx_confirming_block(&outpoint.txid) {
+        OutPointLocation::Chain(block.height as u32)
+    } else {
+        OutPointLocation::None
+    }
+}
+
 /// Prepare transactions to be serialized in a JSON response
 ///
 /// Any transactions with missing prevouts will be filtered out of the response, rather than returned with incorrect data.
@@ -1204,12 +1225,56 @@ fn handle_request(
             None,
         ) => {
             let script_hash = to_scripthash(script_type, script_str, config.network_type)?;
+
+            // Parse pagination parameters
+            let max_utxos = query_params
+                .get("max_utxos")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(config.rest_default_max_mempool_txs); // Reuse mempool txs config for now
+
+            let after_txid = query_params
+                .get("after_txid")
+                .and_then(|s| s.parse::<Txid>().ok());
+
+            let after_vout = query_params
+                .get("after_vout")
+                .and_then(|s| s.parse::<u32>().ok());
+
+            // Construct after_outpoint if both txid and vout are provided
+            let after_outpoint = match (after_txid, after_vout) {
+                (Some(txid), Some(vout)) => Some(OutPoint { txid, vout }),
+                (Some(_), None) => {
+                    return Err(HttpError(
+                        StatusCode::BAD_REQUEST,
+                        String::from("after_txid requires after_vout parameter"),
+                    ));
+                }
+                (None, Some(_)) => {
+                    return Err(HttpError(
+                        StatusCode::BAD_REQUEST,
+                        String::from("after_vout requires after_txid parameter"),
+                    ));
+                }
+                (None, None) => None,
+            };
+
+            // Validate after_outpoint exists if provided
+            if let Some(ref outpoint) = after_outpoint {
+                let location = find_outpoint(outpoint, &query.mempool(), query.chain());
+                if matches!(location, OutPointLocation::None) {
+                    return Err(HttpError(
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        String::from("after_txid:after_vout not found"),
+                    ));
+                }
+            }
+
             let utxos: Vec<UtxoValue> = query
-                .utxo(&script_hash[..])?
+                .utxo(&script_hash[..], after_outpoint.as_ref(), max_utxos)?
                 .into_iter()
                 .map(UtxoValue::from)
                 .collect();
-            // XXX paging?
+
             json_response(utxos, TTL_SHORT)
         }
         (&Method::GET, Some(&"address-prefix"), Some(prefix), None, None, None) => {

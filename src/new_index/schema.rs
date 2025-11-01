@@ -897,7 +897,13 @@ impl ChainQuery {
     }
 
     // TODO: avoid duplication with stats/stats_delta?
-    pub fn utxo(&self, scripthash: &[u8], limit: usize, flush: DBFlush) -> Result<Vec<Utxo>> {
+    pub fn utxo(
+        &self,
+        scripthash: &[u8],
+        after_outpoint: Option<&OutPoint>,
+        limit: usize,
+        flush: DBFlush,
+    ) -> Result<Vec<Utxo>> {
         let _timer = self.start_timer("utxo");
 
         // get the last known utxo set and the blockhash it was updated for.
@@ -916,22 +922,26 @@ impl ChainQuery {
 
         // update utxo set with new transactions since
         let (newutxos, lastblock, processed_items) = cache.map_or_else(
-            || self.utxo_delta(scripthash, HashMap::new(), 0, limit),
-            |(oldutxos, blockheight)| self.utxo_delta(scripthash, oldutxos, blockheight + 1, limit),
+            || self.utxo_delta(scripthash, HashMap::new(), 0, after_outpoint, limit),
+            |(oldutxos, blockheight)| {
+                self.utxo_delta(scripthash, oldutxos, blockheight + 1, after_outpoint, limit)
+            },
         )?;
 
-        // save updated utxo set to cache
-        if let Some(lastblock) = lastblock {
-            if had_cache || processed_items > MIN_HISTORY_ITEMS_TO_CACHE {
-                self.store.cache_db.write(
-                    vec![UtxoCacheRow::new(scripthash, &newutxos, &lastblock).into_row()],
-                    flush,
-                );
+        // save updated utxo set to cache (only if not using pagination cursor)
+        if after_outpoint.is_none() {
+            if let Some(lastblock) = lastblock {
+                if had_cache || processed_items > MIN_HISTORY_ITEMS_TO_CACHE {
+                    self.store.cache_db.write(
+                        vec![UtxoCacheRow::new(scripthash, &newutxos, &lastblock).into_row()],
+                        flush,
+                    );
+                }
             }
         }
 
-        // format as Utxo objects
-        Ok(newutxos
+        // Convert to Vec and sort by block height (descending), then by txid/vout
+        let mut utxo_list: Vec<_> = newutxos
             .into_iter()
             .map(|(outpoint, (blockid, value))| {
                 // in elements/opcat_layer chains, we have to lookup the txo in order to get its
@@ -950,7 +960,35 @@ impl ChainQuery {
                     data: txo.data,
                 }
             })
-            .collect())
+            .collect();
+
+        // Sort by block height (descending), then by txid and vout for deterministic ordering
+        utxo_list.sort_by(|a, b| {
+            b.confirmed
+                .as_ref()
+                .map(|b| b.height)
+                .cmp(&a.confirmed.as_ref().map(|a| a.height))
+                .then_with(|| b.txid.cmp(&a.txid))
+                .then_with(|| b.vout.cmp(&a.vout))
+        });
+
+        // Apply cursor filtering and limit
+        if let Some(after_outpoint) = after_outpoint {
+            // Find the position of the cursor and skip everything up to and including it
+            if let Some(pos) = utxo_list.iter().position(|utxo| {
+                utxo.txid == after_outpoint.txid && utxo.vout == after_outpoint.vout
+            }) {
+                utxo_list = utxo_list.into_iter().skip(pos + 1).take(limit).collect();
+            } else {
+                // Cursor not found in results, return empty (already processed)
+                utxo_list.clear();
+            }
+        } else {
+            // No cursor, just take the first `limit` items
+            utxo_list.truncate(limit);
+        }
+
+        Ok(utxo_list)
     }
 
     fn utxo_delta(
@@ -958,7 +996,8 @@ impl ChainQuery {
         scripthash: &[u8],
         init_utxos: UtxoMap,
         start_height: usize,
-        limit: usize,
+        _after_outpoint: Option<&OutPoint>,
+        _limit: usize,
     ) -> Result<(UtxoMap, Option<BlockHash>, usize)> {
         let _timer = self.start_timer("utxo_delta");
         let history_iter = self
@@ -992,10 +1031,7 @@ impl ChainQuery {
                 // | TxHistoryInfo::Pegout(_) => unreachable!(),
             };
 
-            // abort if the utxo set size excedees the limit at any point in time
-            if utxos.len() > limit {
-                bail!(ErrorKind::TooManyUtxos(limit))
-            }
+            // Note: Removed hard limit check - pagination handles limiting in utxo() method
         }
 
         Ok((utxos, lastblock, processed_items))

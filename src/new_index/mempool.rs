@@ -224,14 +224,19 @@ impl Mempool {
         }
     }
 
-    pub fn utxo(&self, scripthash: &[u8]) -> Vec<Utxo> {
+    pub fn utxo(
+        &self,
+        scripthash: &[u8],
+        after_outpoint: Option<&OutPoint>,
+        limit: usize,
+    ) -> Vec<Utxo> {
         let _timer = self.latency.with_label_values(&["utxo"]).start_timer();
         let entries = match self.history.get(scripthash) {
             None => return vec![],
             Some(entries) => entries,
         };
 
-        entries
+        let mut utxos: Vec<Utxo> = entries
             .iter()
             .filter_map(|entry| match entry {
                 TxHistoryInfo::Funding(info) => {
@@ -249,10 +254,29 @@ impl Mempool {
                     })
                 }
                 TxHistoryInfo::Spending(_) => None,
-                
             })
             .filter(|utxo| !self.has_spend(&OutPoint::from(utxo)))
-            .collect()
+            .collect();
+
+        // Sort for deterministic ordering (by txid, then vout)
+        utxos.sort_by(|a, b| b.txid.cmp(&a.txid).then_with(|| b.vout.cmp(&a.vout)));
+
+        // Apply cursor filtering if provided
+        if let Some(after_outpoint) = after_outpoint {
+            if let Some(pos) = utxos.iter().position(|utxo| {
+                utxo.txid == after_outpoint.txid && utxo.vout == after_outpoint.vout
+            }) {
+                utxos = utxos.into_iter().skip(pos + 1).take(limit).collect();
+            } else {
+                // Cursor not found, return all items up to limit
+                utxos.truncate(limit);
+            }
+        } else {
+            // No cursor, just take the first `limit` items
+            utxos.truncate(limit);
+        }
+
+        utxos
     }
 
     // @XXX avoid code duplication with ChainQuery::stats()?
