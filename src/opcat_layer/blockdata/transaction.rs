@@ -6,10 +6,7 @@ use crate::opcat_layer::{
 };
 
 use bitcoin::{
-    hashes::{
-        hex::{self, ToHex},
-        sha256, sha256d, Hash,
-    },
+    hashes::{sha256, Hash},
     VarInt,
 };
 pub use bitcoin::{OutPoint, Txid};
@@ -42,7 +39,7 @@ impl Transaction {
                 .consensus_encode(&mut enc)
                 .expect("engines don't error");
             // sha256(unlcocking Script)
-            sha256::Hash::hash(&input.script_sig.as_ref())
+            sha256::Hash::hash(input.script_sig.as_ref())
                 .consensus_encode(&mut enc)
                 .expect("engines don't error");
             // sequence
@@ -61,11 +58,11 @@ impl Transaction {
                 .consensus_encode(&mut enc)
                 .expect("engines don't error");
             // script hash
-            sha256::Hash::hash(&output.script_pubkey.as_ref())
+            sha256::Hash::hash(output.script_pubkey.as_ref())
                 .consensus_encode(&mut enc)
                 .expect("engines don't error");
             // data hash
-            sha256::Hash::hash(&output.data.as_ref())
+            sha256::Hash::hash(output.data.as_ref())
                 .consensus_encode(&mut enc)
                 .expect("engines don't error");
         }

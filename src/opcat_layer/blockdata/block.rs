@@ -91,7 +91,7 @@ impl Block {
 
     /// Returns the weight of the block.
     pub fn weight(&self) -> usize {
-        let base_weight = 1 * self.base_size();
+        let base_weight = self.base_size();
         let txs_weight: usize = self.txdata.iter().map(Transaction::weight).sum();
         base_weight + txs_weight
     }

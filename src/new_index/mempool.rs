@@ -1,7 +1,7 @@
 use crate::metrics::MetricOpts;
 use bounded_vec_deque::BoundedVecDeque;
 use itertools::Itertools;
-use prometheus::{Gauge, HistogramOpts, HistogramVec};
+use prometheus::{HistogramOpts, HistogramVec};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, Bound::Excluded, Bound::Unbounded, HashMap, HashSet};
 use std::sync::{Arc, RwLock};

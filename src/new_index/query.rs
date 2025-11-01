@@ -2,17 +2,22 @@ use rayon::prelude::*;
 
 use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
+#[cfg(not(feature = "opcat_layer"))]
 use std::time::{Duration, Instant};
 
-use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid, FEE_RATE};
+#[cfg(feature = "opcat_layer")]
+use crate::chain::FEE_RATE;
+use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid};
 use crate::config::Config;
 use crate::daemon::{Daemon, MempoolAcceptResult, SubmitPackageResult};
 use crate::errors::*;
 use crate::new_index::{ChainQuery, Mempool, ScriptStats, SpendingInput, Utxo};
 use crate::util::{is_spendable, BlockId, Bytes, TransactionStatus};
 
+#[cfg(not(feature = "opcat_layer"))]
 const FEE_ESTIMATES_TTL: u64 = 60; // seconds
 
+#[cfg(not(feature = "opcat_layer"))]
 const CONF_TARGETS: [u16; 28] = [
     1u16, 2u16, 3u16, 4u16, 5u16, 6u16, 7u16, 8u16, 9u16, 10u16, 11u16, 12u16, 13u16, 14u16, 15u16,
     16u16, 17u16, 18u16, 19u16, 20u16, 21u16, 22u16, 23u16, 24u16, 25u16, 144u16, 504u16, 1008u16,
@@ -23,6 +28,7 @@ pub struct Query {
     mempool: Arc<RwLock<Mempool>>,
     daemon: Arc<Daemon>,
     config: Arc<Config>,
+    #[cfg(not(feature = "opcat_layer"))]
     cached_estimates: RwLock<(HashMap<u16, f64>, Option<Instant>)>,
     cached_relayfee: RwLock<Option<f64>>,
     // #[cfg(feature = "opcat_layer")]
@@ -30,7 +36,6 @@ pub struct Query {
 }
 
 impl Query {
-    #[cfg(not(feature = "opcat_layer"))]
     pub fn new(
         chain: Arc<ChainQuery>,
         mempool: Arc<RwLock<Mempool>>,
@@ -42,6 +47,7 @@ impl Query {
             mempool,
             daemon,
             config,
+            #[cfg(not(feature = "opcat_layer"))]
             cached_estimates: RwLock::new((HashMap::new(), None)),
             cached_relayfee: RwLock::new(None),
         }
@@ -197,7 +203,7 @@ impl Query {
         self.mempool().has_unconfirmed_parents(txid)
     }
 
-    pub fn estimate_fee(&self, conf_target: u16) -> Option<f64> {
+    pub fn estimate_fee(&self, _conf_target: u16) -> Option<f64> {
         if self.config.network_type.is_regtest() {
             return self.get_relayfee().ok();
         }
@@ -205,37 +211,43 @@ impl Query {
         #[cfg(feature = "opcat_layer")]
         return Some(FEE_RATE);
 
-        if let (ref cache, Some(cache_time)) = *self.cached_estimates.read().unwrap() {
-            if cache_time.elapsed() < Duration::from_secs(FEE_ESTIMATES_TTL) {
-                return cache.get(&conf_target).copied();
+        #[cfg(not(feature = "opcat_layer"))]
+        {
+            if let (ref cache, Some(cache_time)) = *self.cached_estimates.read().unwrap() {
+                if cache_time.elapsed() < Duration::from_secs(FEE_ESTIMATES_TTL) {
+                    return cache.get(&_conf_target).copied();
+                }
             }
-        }
 
-        self.update_fee_estimates();
-        self.cached_estimates
-            .read()
-            .unwrap()
-            .0
-            .get(&conf_target)
-            .copied()
+            self.update_fee_estimates();
+            self.cached_estimates
+                .read()
+                .unwrap()
+                .0
+                .get(&_conf_target)
+                .copied()
+        }
     }
 
     pub fn estimate_fee_map(&self) -> HashMap<u16, f64> {
         #[cfg(feature = "opcat_layer")]
         return HashMap::from([(1, FEE_RATE)]);
 
-        if let (ref cache, Some(cache_time)) = *self.cached_estimates.read().unwrap() {
-            if cache_time.elapsed() < Duration::from_secs(FEE_ESTIMATES_TTL) {
-                return cache.clone();
+        #[cfg(not(feature = "opcat_layer"))]
+        {
+            if let (ref cache, Some(cache_time)) = *self.cached_estimates.read().unwrap() {
+                if cache_time.elapsed() < Duration::from_secs(FEE_ESTIMATES_TTL) {
+                    return cache.clone();
+                }
             }
-        }
 
-        self.update_fee_estimates();
-        self.cached_estimates.read().unwrap().0.clone()
+            self.update_fee_estimates();
+            self.cached_estimates.read().unwrap().0.clone()
+        }
     }
 
+    #[cfg(not(feature = "opcat_layer"))]
     fn update_fee_estimates(&self) {
-        #[cfg(not(feature = "opcat_layer"))]
         match self.daemon.estimatesmartfee_batch(&CONF_TARGETS) {
             Ok(estimates) => {
                 *self.cached_estimates.write().unwrap() = (estimates, Some(Instant::now()));
@@ -254,25 +266,6 @@ impl Query {
         let relayfee = self.daemon.get_relayfee()?;
         self.cached_relayfee.write().unwrap().replace(relayfee);
         Ok(relayfee)
-    }
-
-    #[cfg(feature = "opcat_layer")]
-    pub fn new(
-        chain: Arc<ChainQuery>,
-        mempool: Arc<RwLock<Mempool>>,
-        daemon: Arc<Daemon>,
-        config: Arc<Config>,
-        // asset_db: Option<Arc<RwLock<AssetRegistry>>>,
-    ) -> Self {
-        Query {
-            chain,
-            mempool,
-            daemon,
-            config,
-            // asset_db,
-            cached_estimates: RwLock::new((HashMap::new(), None)),
-            cached_relayfee: RwLock::new(None),
-        }
     }
 
     // #[cfg(feature = "opcat_layer")]

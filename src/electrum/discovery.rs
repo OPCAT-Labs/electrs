@@ -536,7 +536,7 @@ mod tests {
         stderrlog::new().verbosity(4).init().unwrap();
 
         #[cfg(feature = "opcat_layer")]
-        let testnet = Network::LiquidTestnet;
+        let testnet = Network::OpcatLayerTestnet;
         #[cfg(not(feature = "opcat_layer"))]
         let testnet = Network::Testnet;
 

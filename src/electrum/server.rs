@@ -27,16 +27,15 @@ const MAX_HEADERS: usize = 2016;
 #[cfg(feature = "electrum-discovery")]
 use crate::electrum::{DiscoveryManager, ServerFeatures};
 
-use crate::chain::{BlockHash, BlockHeader, OutPoint, Transaction, Txid};
+use crate::chain::Txid;
 use crate::config::{Config, VERSION_STRING};
 use crate::electrum::{get_electrum_height, ProtocolVersion};
 use crate::errors::*;
 use crate::metrics::{Gauge, HistogramOpts, HistogramVec, MetricOpts, Metrics};
-use crate::new_index::{ChainQuery, Query, SpendingInput, Utxo};
+use crate::new_index::{Query, Utxo};
 use crate::util::electrum_merkle::{get_header_merkle_proof, get_id_from_pos, get_tx_merkle_proof};
 use crate::util::{
-    create_socket, full_hash, spawn_thread, BlockId, Channel, FullHash, HeaderEntry, ScriptToAddr,
-    ScriptToAsm, SyncChannel,
+    create_socket, full_hash, spawn_thread, BlockId, Channel, FullHash, HeaderEntry, SyncChannel,
 };
 
 // TODO: Sha256dHash should be a generic hash-container (since script hash is single SHA256)

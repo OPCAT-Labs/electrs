@@ -718,8 +718,6 @@ impl ChainQuery {
                         tx_position,
                     });
                 }
-                #[cfg(feature = "opcat_layer")]
-                _ => {}
             }
         }
         let mut tx_summaries = map.into_values().collect::<Vec<TxHistorySummary>>();

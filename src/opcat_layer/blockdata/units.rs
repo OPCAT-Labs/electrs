@@ -47,15 +47,15 @@ impl From<u64> for Amount {
     }
 }
 
-impl Into<u64> for Amount {
-    fn into(self) -> u64 {
-        self.0
+impl From<Amount> for u64 {
+    fn from(val: Amount) -> Self {
+        val.0
     }
 }
 
-impl Into<i64> for Amount {
-    fn into(self) -> i64 {
-        self.0 as i64
+impl From<Amount> for i64 {
+    fn from(val: Amount) -> Self {
+        val.0 as i64
     }
 }
 

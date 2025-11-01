@@ -129,6 +129,7 @@ fn difficulty_new(bh: &bitcoin::BlockHeader) -> f64 {
 }
 
 #[cfg(feature = "opcat_layer")]
+#[allow(dead_code)]
 fn difficulty_new_opcat(bh: &crate::chain::BlockHeader) -> f64 {
     let mut n_shift = bh.bits >> 24 & 0xff;
     let mut d_diff = (0x0000ffff as f64) / ((bh.bits & 0x00ffffff) as f64);
@@ -391,7 +392,10 @@ impl From<Utxo> for UtxoValue {
             txid: utxo.txid,
             vout: utxo.vout,
             status: TransactionStatus::from(utxo.confirmed),
+            #[cfg(feature = "opcat_layer")]
             value: utxo.value.into(),
+            #[cfg(not(feature = "opcat_layer"))]
+            value: utxo.value,
 
             #[cfg(feature = "opcat_layer")]
             data: utxo.data.to_hex(),
@@ -453,7 +457,7 @@ fn find_txid(
 
 enum OutPointLocation {
     Mempool,
-    Chain(u32), // contains height
+    Chain(()),
     None,
 }
 
@@ -465,8 +469,8 @@ fn find_outpoint(
 ) -> OutPointLocation {
     if mempool.lookup_txo(outpoint).is_some() {
         OutPointLocation::Mempool
-    } else if let Some(block) = chain.tx_confirming_block(&outpoint.txid) {
-        OutPointLocation::Chain(block.height as u32)
+    } else if chain.tx_confirming_block(&outpoint.txid).is_some() {
+        OutPointLocation::Chain(())
     } else {
         OutPointLocation::None
     }
@@ -1801,7 +1805,10 @@ fn to_scripthash(
     }
 }
 
-fn address_to_scripthash(addr: &str, network: Network) -> Result<FullHash, HttpError> {
+fn address_to_scripthash(
+    addr: &str,
+    #[cfg_attr(feature = "opcat_layer", allow(unused_variables))] network: Network,
+) -> Result<FullHash, HttpError> {
     let addr = address::Address::from_str(addr)?;
 
     #[cfg(not(feature = "opcat_layer"))]
