@@ -287,6 +287,9 @@ struct TxOutValue {
     #[serde(skip_serializing_if = "Option::is_none")]
     value: Option<u64>,
 
+    #[cfg(feature = "opcat_layer")]
+    data: String,
+
 }
 
 impl TxOutValue {
@@ -296,7 +299,10 @@ impl TxOutValue {
 
         #[cfg(feature = "opcat_layer")]
         let value = Some(txout.value.as_sat());
-        
+
+        #[cfg(feature = "opcat_layer")]
+        let data = hex::encode(&txout.data);
+
         let is_fee = false;
 
         let script = &txout.script_pubkey;
@@ -338,6 +344,9 @@ impl TxOutValue {
             scriptpubkey_address: script_addr,
             scriptpubkey_type: script_type.to_string(),
             value,
+
+            #[cfg(feature = "opcat_layer")]
+            data,
         }
     }
 }
