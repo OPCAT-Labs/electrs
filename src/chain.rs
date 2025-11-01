@@ -11,10 +11,10 @@ pub use bitcoin::{
 
 #[cfg(feature = "opcat_layer")]
 pub use crate::opcat_layer::{
-    hashes, address, blockdata::{script, opcodes},
-    Address, Block, BlockHash, BlockHeader, OutPoint, Script, 
-    Transaction, TxIn, TxOut, Txid,
-    FEE_RATE,
+    address,
+    blockdata::{opcodes, script},
+    hashes, Address, Block, BlockHash, BlockHeader, OutPoint, Script, Transaction, TxIn, TxOut,
+    Txid, FEE_RATE,
 };
 
 use bitcoin::blockdata::constants::genesis_block;
@@ -49,7 +49,7 @@ pub enum Network {
 
 #[cfg(feature = "opcat_layer")]
 pub use crate::opcat_layer::address::{
-    OPCAT_MAINNET_PARAMS, OPCAT_TESTNET_PARAMS, OPCAT_REGTEST_PARAMS
+    OPCAT_MAINNET_PARAMS, OPCAT_REGTEST_PARAMS, OPCAT_TESTNET_PARAMS,
 };
 
 /// Magic for testnet4, 0x1c163f28 (from BIP94) with flipped endianness.
@@ -68,9 +68,9 @@ impl Network {
     #[cfg(feature = "opcat_layer")]
     pub fn magic(self) -> u32 {
         match self {
-            Network::OpcatLayerMainnet => 0xF9BE_B4D9,    // Same as Bitcoin for now
-            Network::OpcatLayerTestnet => 0x0709_110B,    // Same as Bitcoin testnet for now  
-            Network::OpcatLayerRegtest => 0xFABF_B5DA,    // Same as Bitcoin regtest for now
+            Network::OpcatLayerMainnet => 0xF9BE_B4D9, // Same as Bitcoin for now
+            Network::OpcatLayerTestnet => 0x0709_110B, // Same as Bitcoin testnet for now
+            Network::OpcatLayerRegtest => 0xFABF_B5DA, // Same as Bitcoin regtest for now
         }
     }
 
@@ -143,9 +143,9 @@ pub fn bitcoin_genesis_hash(network: Network) -> bitcoin::BlockHash {
     }
     #[cfg(feature = "opcat_layer")]
     match network {
-        Network::OpcatLayerMainnet => *BITCOIN_GENESIS,    // Use Bitcoin genesis for now
-        Network::OpcatLayerTestnet => *TESTNET_GENESIS,    // Use Bitcoin testnet genesis for now
-        Network::OpcatLayerRegtest => *REGTEST_GENESIS,    // Use Bitcoin regtest genesis for now
+        Network::OpcatLayerMainnet => *BITCOIN_GENESIS, // Use Bitcoin genesis for now
+        Network::OpcatLayerTestnet => *TESTNET_GENESIS, // Use Bitcoin testnet genesis for now
+        Network::OpcatLayerRegtest => *REGTEST_GENESIS, // Use Bitcoin regtest genesis for now
     }
 }
 
@@ -154,7 +154,7 @@ pub fn opcat_genesis_hash(network: Network) -> crate::opcat_layer::BlockHash {
     // For now, use the same genesis blocks as Bitcoin
     // These can be replaced with actual OPCAT Layer genesis blocks later
     let bitcoin_hash = bitcoin_genesis_hash(network);
-    
+
     // Convert Bitcoin BlockHash to OPCAT Layer BlockHash
     // This assumes they have the same internal representation
     crate::opcat_layer::BlockHash::from_hash(bitcoin_hash.as_hash())
@@ -229,7 +229,7 @@ impl From<BNetwork> for Network {
             BNetwork::Bitcoin => Network::OpcatLayerMainnet,
             BNetwork::Testnet => Network::OpcatLayerTestnet,
             BNetwork::Regtest => Network::OpcatLayerRegtest,
-            BNetwork::Signet => Network::OpcatLayerTestnet,  // Map signet to testnet for now
+            BNetwork::Signet => Network::OpcatLayerTestnet, // Map signet to testnet for now
         }
     }
 }

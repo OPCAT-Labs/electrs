@@ -9,7 +9,7 @@ impl Amount {
     pub fn as_sat(&self) -> u64 {
         self.0
     }
-    
+
     pub fn from_sat(satoshis: u64) -> Self {
         Amount(satoshis)
     }
@@ -17,7 +17,7 @@ impl Amount {
 
 impl std::ops::Add for Amount {
     type Output = Amount;
-    
+
     fn add(self, other: Amount) -> Amount {
         Amount(self.0 + other.0)
     }

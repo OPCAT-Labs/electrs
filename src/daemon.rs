@@ -12,16 +12,16 @@ use hex;
 use itertools::Itertools;
 use serde_json::{from_str, from_value, Value};
 
-#[cfg(not(feature = "opcat_layer"))]
-use bitcoin::consensus::encode::{deserialize, serialize};
 #[cfg(feature = "opcat_layer")]
 use crate::opcat_layer::consensus::encode::{deserialize, serialize};
+#[cfg(not(feature = "opcat_layer"))]
+use bitcoin::consensus::encode::{deserialize, serialize};
 
-use crate::chain::{Block, BlockHeader, Transaction, BlockHash, Txid, Network};
+use crate::chain::{Block, BlockHash, BlockHeader, Network, Transaction, Txid};
 use crate::errors::*;
-use crate::util::HeaderList;
+use crate::metrics::{HistogramOpts, HistogramVec, Metrics};
 use crate::signal::Waiter;
-use crate::metrics::{HistogramVec, HistogramOpts, Metrics};
+use crate::util::HeaderList;
 
 fn header_from_value(value: Value) -> Result<BlockHeader> {
     let header_hex = value

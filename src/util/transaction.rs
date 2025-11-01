@@ -4,7 +4,6 @@ use crate::util::BlockId;
 
 use std::collections::HashMap;
 
-
 #[derive(Serialize, Deserialize)]
 pub struct TransactionStatus {
     pub confirmed: bool,
@@ -107,9 +106,9 @@ pub(super) mod sigops {
             All,
         },
         script::{self, Instruction},
-        Transaction, TxOut, 
+        Transaction, TxOut,
     };
-        
+
     #[cfg(not(feature = "opcat_layer"))]
     use crate::chain::Witness;
 

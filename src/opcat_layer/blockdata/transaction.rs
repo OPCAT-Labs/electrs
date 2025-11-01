@@ -1,14 +1,17 @@
 use std::io;
 
 use crate::opcat_layer::{
-  blockdata::units::Amount, 
-  consensus::encode::{
-    serialize,
-    Encodable, Decodable, MAX_VEC_SIZE, Error
-  },
+    blockdata::units::Amount,
+    consensus::encode::{serialize, Decodable, Encodable, Error, MAX_VEC_SIZE},
 };
 
-use bitcoin::{hashes::{hex::{self, ToHex}, sha256, sha256d, Hash}, VarInt};
+use bitcoin::{
+    hashes::{
+        hex::{self, ToHex},
+        sha256, sha256d, Hash,
+    },
+    VarInt,
+};
 pub use bitcoin::{OutPoint, Txid};
 
 // OPCAT Layer transaction structure
@@ -26,37 +29,60 @@ pub struct Transaction {
 impl Transaction {
     pub fn txid(&self) -> Txid {
         let mut enc = Txid::engine();
-        self.version.consensus_encode(&mut enc).expect("engines don't error");
-        VarInt(self.input.len() as u64).consensus_encode(&mut enc).expect("engines don't error");
+        self.version
+            .consensus_encode(&mut enc)
+            .expect("engines don't error");
+        VarInt(self.input.len() as u64)
+            .consensus_encode(&mut enc)
+            .expect("engines don't error");
         for input in &self.input {
             // prevout
-            input.previous_output.consensus_encode(&mut enc).expect("engines don't error");
+            input
+                .previous_output
+                .consensus_encode(&mut enc)
+                .expect("engines don't error");
             // sha256(unlcocking Script)
-            sha256::Hash::hash(&input.script_sig.as_ref()).consensus_encode(&mut enc).expect("engines don't error");
+            sha256::Hash::hash(&input.script_sig.as_ref())
+                .consensus_encode(&mut enc)
+                .expect("engines don't error");
             // sequence
-            input.sequence.consensus_encode(&mut enc).expect("engines don't error");
+            input
+                .sequence
+                .consensus_encode(&mut enc)
+                .expect("engines don't error");
         }
-        VarInt(self.output.len() as u64).consensus_encode(&mut enc).expect("engines don't error");
+        VarInt(self.output.len() as u64)
+            .consensus_encode(&mut enc)
+            .expect("engines don't error");
         for output in &self.output {
             // value
-            output.value.consensus_encode(&mut enc).expect("engines don't error");
+            output
+                .value
+                .consensus_encode(&mut enc)
+                .expect("engines don't error");
             // script hash
-            sha256::Hash::hash(&output.script_pubkey.as_ref()).consensus_encode(&mut enc).expect("engines don't error");
+            sha256::Hash::hash(&output.script_pubkey.as_ref())
+                .consensus_encode(&mut enc)
+                .expect("engines don't error");
             // data hash
-            sha256::Hash::hash(&output.data.as_ref()).consensus_encode(&mut enc).expect("engines don't error");
+            sha256::Hash::hash(&output.data.as_ref())
+                .consensus_encode(&mut enc)
+                .expect("engines don't error");
         }
-        self.lock_time.consensus_encode(&mut enc).expect("engines don't error");
+        self.lock_time
+            .consensus_encode(&mut enc)
+            .expect("engines don't error");
         Txid::from_engine(enc)
     }
-    
+
     pub fn is_coin_base(&self) -> bool {
         self.input.len() == 1 && self.input[0].previous_output.is_null()
     }
-    
+
     pub fn weight(&self) -> usize {
         self.size()
     }
-    
+
     fn get_base_size(&self) -> usize {
         // Calculate base transaction size (without witness data)
         // This is a simplified calculation
@@ -67,18 +93,18 @@ impl Transaction {
         self.output.iter().map(|o| 8 + bitcoin::VarInt(o.script_pubkey.len() as u64).len() + o.script_pubkey.len()).sum::<usize>() +
         4 // lock_time
     }
-    
+
     // fn get_total_size(&self) -> usize {
     //     // Calculate total transaction size (including witness data)
     //     // This is a simplified calculation
-    //     self.get_base_size() + 
+    //     self.get_base_size() +
     //     self.input.iter().map(|i| i.witness.serialized_len()).sum::<usize>()
     // }
 
     pub fn strippedsize(&self) -> usize {
-          self.get_base_size()
+        self.get_base_size()
     }
-    
+
     pub fn size(&self) -> usize {
         serialize(self).len()
     }
@@ -107,19 +133,19 @@ impl Decodable for Transaction {
     fn consensus_decode<D: io::Read>(d: D) -> Result<Self, Error> {
         let mut d = d.take(MAX_VEC_SIZE as u64);
         let version = i32::consensus_decode(&mut d)?;
-        
+
         let input_len = bitcoin::VarInt::consensus_decode(&mut d)?.0 as usize;
         let mut input = Vec::with_capacity(input_len);
         for _ in 0..input_len {
             input.push(TxIn::consensus_decode(&mut d)?);
         }
-        
+
         let output_len = bitcoin::VarInt::consensus_decode(&mut d)?.0 as usize;
         let mut output = Vec::with_capacity(output_len);
         for _ in 0..output_len {
             output.push(TxOut::consensus_decode(&mut d)?);
         }
-        
+
         Ok(Transaction {
             version,
             input,
@@ -128,7 +154,6 @@ impl Decodable for Transaction {
         })
     }
 }
-
 
 // OPCAT Layer transaction output
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,6 +219,5 @@ impl Decodable for TxOut {
         })
     }
 }
-
 
 // TODO: add tests

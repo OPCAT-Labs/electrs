@@ -1,26 +1,28 @@
+use crate::metrics::MetricOpts;
 use bounded_vec_deque::BoundedVecDeque;
 use itertools::Itertools;
-use prometheus::{HistogramOpts, HistogramVec, Gauge};
-use crate::metrics::MetricOpts;
+use prometheus::{Gauge, HistogramOpts, HistogramVec};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap, HashSet, BTreeSet, Bound::Excluded, Bound::Unbounded};
+use std::collections::{BTreeMap, BTreeSet, Bound::Excluded, Bound::Unbounded, HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-#[cfg(not(feature = "opcat_layer"))]
-use bitcoin::consensus::encode::{serialize, deserialize};
 #[cfg(feature = "opcat_layer")]
-use crate::opcat_layer::consensus::encode::{serialize, deserialize};
+use crate::opcat_layer::consensus::encode::{deserialize, serialize};
+#[cfg(not(feature = "opcat_layer"))]
+use bitcoin::consensus::encode::{deserialize, serialize};
 
-use crate::chain::{Network, OutPoint, Transaction, Txid, TxOut};
+use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid};
 use crate::config::Config;
 use crate::daemon::Daemon;
 use crate::errors::*;
 use crate::metrics::Metrics;
-use crate::new_index::{ChainQuery, ScriptStats, SpendingInput, TxHistoryInfo, FundingInfo, SpendingInfo, Utxo, compute_script_hash};
+use crate::new_index::{
+    compute_script_hash, ChainQuery, FundingInfo, ScriptStats, SpendingInfo, SpendingInput,
+    TxHistoryInfo, Utxo,
+};
 use crate::util::fees::{make_fee_histogram, TxFeeInfo};
 use crate::util::{extract_tx_prevouts, full_hash, has_prevout, is_spendable, Bytes};
-
 
 // A simplified transaction view used for the list of most recent transactions
 #[derive(Serialize)]
@@ -40,13 +42,12 @@ pub struct Mempool {
     edges: HashMap<OutPoint, (Txid, u32)>,
     recent: BoundedVecDeque<TxOverview>,
     backlog_stats: (BacklogStats, Instant),
-    
+
     // Metrics
     latency: HistogramVec,
     delta: HistogramVec,
     count: prometheus::GaugeVec,
-    
-    
+
     config: Arc<Config>,
 }
 
@@ -76,7 +77,6 @@ impl Mempool {
                 &["type"],
             ),
 
-            
             config,
         }
     }
@@ -649,7 +649,6 @@ impl Mempool {
         self.edges
             .retain(|_outpoint, (txid, _vin)| !to_remove.contains(txid));
     }
-
 }
 
 #[derive(Serialize)]

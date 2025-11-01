@@ -11,7 +11,6 @@ use crate::errors::*;
 use crate::new_index::{ChainQuery, Mempool, ScriptStats, SpendingInput, Utxo};
 use crate::util::{is_spendable, BlockId, Bytes, TransactionStatus};
 
-
 const FEE_ESTIMATES_TTL: u64 = 60; // seconds
 
 const CONF_TARGETS: [u16; 28] = [
@@ -285,5 +284,4 @@ impl Query {
     //         None,
     //     )
     // }
-
 }

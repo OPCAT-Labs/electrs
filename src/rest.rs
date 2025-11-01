@@ -5,9 +5,7 @@ use crate::metrics::Metrics;
 use crate::new_index::{compute_script_hash, Query, SpendingInput, Utxo};
 use crate::util::{
     create_socket, electrum_merkle, extract_tx_prevouts, full_hash, get_innerscripts, get_tx_fee,
-    has_prevout, is_coinbase, 
-    transaction_sigop_count, 
-    BlockHeaderMeta, BlockId, FullHash,
+    has_prevout, is_coinbase, transaction_sigop_count, BlockHeaderMeta, BlockId, FullHash,
     ScriptToAddr, ScriptToAsm, TransactionStatus,
 };
 
@@ -46,7 +44,6 @@ const TTL_MEMPOOL_RECENT: u32 = 60; // 1 minute
 const CONF_FINAL: usize = 100; // consider transactions final after 100 confirmations
 const INTERNAL_PREFIX: &str = "internal";
 
-
 #[derive(Serialize)]
 struct BlockValue {
     id: String,
@@ -59,14 +56,13 @@ struct BlockValue {
     merkle_root: String,
     previousblockhash: Option<String>,
     mediantime: u32,
-    
+
     #[cfg(not(feature = "opcat_layer"))]
     bits: u32,
     #[cfg(not(feature = "opcat_layer"))]
     nonce: u32,
     #[cfg(not(feature = "opcat_layer"))]
     difficulty: f64,
-    
     // #[cfg(feature = "opcat_layer")]
     // ext: Option<serde_json::Value>,
 }
@@ -218,7 +214,7 @@ struct TxInValue {
     #[cfg(not(feature = "opcat_layer"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     witness: Option<Vec<String>>,
-    
+
     is_coinbase: bool,
     sequence: u32,
 
@@ -226,7 +222,6 @@ struct TxInValue {
     inner_redeemscript_asm: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     inner_witnessscript_asm: Option<String>,
-
 }
 
 impl TxInValue {
@@ -289,7 +284,6 @@ struct TxOutValue {
 
     #[cfg(feature = "opcat_layer")]
     data: String,
-
 }
 
 impl TxOutValue {
@@ -390,7 +384,6 @@ struct UtxoValue {
 
     #[cfg(feature = "opcat_layer")]
     data: String,
-
 }
 impl From<Utxo> for UtxoValue {
     fn from(utxo: Utxo) -> Self {

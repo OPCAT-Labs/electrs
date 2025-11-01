@@ -1,4 +1,5 @@
 use bitcoin::consensus::{Decodable, Encodable};
+use bitcoin::hashes::sha256;
 use bitcoin::hashes::sha256d::Hash as Sha256dHash;
 #[cfg(not(feature = "opcat_layer"))]
 use bitcoin::util::merkleblock::MerkleBlock;
@@ -6,7 +7,6 @@ use bitcoin::VarInt;
 use itertools::Itertools;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
-use bitcoin::hashes::sha256;
 
 #[cfg(not(feature = "opcat_layer"))]
 use bitcoin::consensus::encode::{deserialize, serialize};
@@ -32,8 +32,10 @@ use crate::util::{
     BlockStatus, Bytes, HeaderEntry, HeaderList, ScriptToAddr,
 };
 
-use crate::new_index::db::{DBFlush, DBRow, ReverseScanIterator, ReverseScanGroupIterator, ScanIterator, DB};
-use crate::new_index::fetch::{start_fetcher, BlockEntry, FetchFrom, bitcoind_sequential_fetcher};
+use crate::new_index::db::{
+    DBFlush, DBRow, ReverseScanGroupIterator, ReverseScanIterator, ScanIterator, DB,
+};
+use crate::new_index::fetch::{bitcoind_sequential_fetcher, start_fetcher, BlockEntry, FetchFrom};
 
 const MIN_HISTORY_ITEMS_TO_CACHE: usize = 100;
 
@@ -1113,17 +1115,15 @@ impl ChainQuery {
                 TxHistoryInfo::Spending(ref info) => {
                     stats.spent_txo_count += 1;
                     stats.spent_txo_sum += info.value;
-                }
+                } // #[cfg(feature = "opcat_layer")]
+                  // TxHistoryInfo::Funding(_) => {
+                  //     stats.funded_txo_count += 1;
+                  // }
 
-                // #[cfg(feature = "opcat_layer")]
-                // TxHistoryInfo::Funding(_) => {
-                //     stats.funded_txo_count += 1;
-                // }
-
-                // #[cfg(feature = "opcat_layer")]
-                // TxHistoryInfo::Spending(_) => {
-                //     stats.spent_txo_count += 1;
-                // }
+                  // #[cfg(feature = "opcat_layer")]
+                  // TxHistoryInfo::Spending(_) => {
+                  //     stats.spent_txo_count += 1;
+                  // }
             }
 
             lastblock = Some(blockid.hash);
@@ -1343,7 +1343,6 @@ impl ChainQuery {
             |t| t == txid,
         ))
     }
-
 }
 
 fn load_blockhashes(db: &DB, prefix: &[u8]) -> HashSet<BlockHash> {
@@ -1503,38 +1502,40 @@ fn lookup_txo(txstore_db: &DB, outpoint: &OutPoint) -> Option<TxOut> {
             // Try to parse as HybridTxOut first (new format)
             if let Ok(hybrid_txout) = deserialize::<HybridTxOut>(&val) {
                 let script = match hybrid_txout.script_storage {
-                    ScriptStorage::Inline(script_bytes) => {
-                        Script::from(script_bytes)
-                    }
+                    ScriptStorage::Inline(script_bytes) => Script::from(script_bytes),
                     ScriptStorage::Reference(script_hash) => {
                         let script_key = ScriptRow::key(&script_hash);
-                        txstore_db.get(&script_key)?
+                        txstore_db
+                            .get(&script_key)?
                             .into_iter()
                             .collect::<Vec<u8>>()
                             .into()
                     }
                 };
-                
+
                 #[cfg(not(feature = "opcat_layer"))]
                 let txout = TxOut {
                     value: hybrid_txout.value,
                     script_pubkey: script,
                 };
-                
+
                 #[cfg(feature = "opcat_layer")]
                 let txout = TxOut {
                     value: hybrid_txout.value,
                     script_pubkey: script,
                     data: hybrid_txout.data,
                 };
-                
+
                 Some(txout)
             } else {
                 // Fallback to legacy TxOut format for backward compatibility
                 match deserialize::<TxOut>(&val) {
                     Ok(txout) => Some(txout),
                     Err(e) => {
-                        warn!("Failed to parse TxOut data for outpoint {}: {}", outpoint, e);
+                        warn!(
+                            "Failed to parse TxOut data for outpoint {}: {}",
+                            outpoint, e
+                        );
                         None
                     }
                 }
@@ -1788,7 +1789,10 @@ struct HybridTxOut {
 }
 
 impl Encodable for HybridTxOut {
-    fn consensus_encode<W: io::Write>(&self, mut writer: W) -> std::result::Result<usize, io::Error> {
+    fn consensus_encode<W: io::Write>(
+        &self,
+        mut writer: W,
+    ) -> std::result::Result<usize, io::Error> {
         let mut len = 0;
         len += self.value.consensus_encode(&mut writer)?;
         len += self.script_storage.consensus_encode(&mut writer)?;
@@ -1803,7 +1807,9 @@ impl Encodable for HybridTxOut {
 }
 
 impl Decodable for HybridTxOut {
-    fn consensus_decode<R: io::Read>(mut reader: R) -> std::result::Result<Self, bitcoin::consensus::encode::Error> {
+    fn consensus_decode<R: io::Read>(
+        mut reader: R,
+    ) -> std::result::Result<Self, bitcoin::consensus::encode::Error> {
         let value: Value = Decodable::consensus_decode(&mut reader)?;
         let script_storage: ScriptStorage = Decodable::consensus_decode(&mut reader)?;
         #[cfg(feature = "opcat_layer")]
@@ -1819,12 +1825,15 @@ impl Decodable for HybridTxOut {
 }
 
 enum ScriptStorage {
-    Inline(Bytes),           // script_len + script_bytes for scripts <= 32 bytes
-    Reference([u8; 32]),     // script_hash for scripts > 32 bytes
+    Inline(Bytes),       // script_len + script_bytes for scripts <= 32 bytes
+    Reference([u8; 32]), // script_hash for scripts > 32 bytes
 }
 
 impl Encodable for ScriptStorage {
-    fn consensus_encode<W: io::Write>(&self, mut writer: W) -> std::result::Result<usize, io::Error> {
+    fn consensus_encode<W: io::Write>(
+        &self,
+        mut writer: W,
+    ) -> std::result::Result<usize, io::Error> {
         let mut len = 0;
         match self {
             ScriptStorage::Inline(script_bytes) => {
@@ -1843,7 +1852,9 @@ impl Encodable for ScriptStorage {
 }
 
 impl Decodable for ScriptStorage {
-    fn consensus_decode<R: io::Read>(mut reader: R) -> std::result::Result<Self, bitcoin::consensus::encode::Error> {
+    fn consensus_decode<R: io::Read>(
+        mut reader: R,
+    ) -> std::result::Result<Self, bitcoin::consensus::encode::Error> {
         let tag: u8 = Decodable::consensus_decode(&mut reader)?;
         match tag {
             0 => {
@@ -1856,7 +1867,9 @@ impl Decodable for ScriptStorage {
                 let script_hash: [u8; 32] = Decodable::consensus_decode(&mut reader)?;
                 Ok(ScriptStorage::Reference(script_hash))
             }
-            _ => Err(bitcoin::consensus::encode::Error::ParseFailed("Invalid ScriptStorage tag"))
+            _ => Err(bitcoin::consensus::encode::Error::ParseFailed(
+                "Invalid ScriptStorage tag",
+            )),
         }
     }
 }
@@ -1899,7 +1912,6 @@ impl ScriptRow {
         }
     }
 }
-
 
 impl TxOutRow {
     fn new(txid: &FullHash, vout: usize, txout: &TxOut) -> TxOutRow {
@@ -2048,7 +2060,6 @@ pub enum TxHistoryInfo {
     // This ordering comes from the enum order.
     Spending(SpendingInfo),
     Funding(FundingInfo),
-
     // #[cfg(feature = "opcat_layer")]
     // Issuing(asset::IssuingInfo),
     // #[cfg(feature = "opcat_layer")]
@@ -2064,7 +2075,6 @@ impl TxHistoryInfo {
         match self {
             TxHistoryInfo::Funding(FundingInfo { txid, .. })
             | TxHistoryInfo::Spending(SpendingInfo { txid, .. }) => deserialize(txid),
-
             // #[cfg(feature = "opcat_layer")]
             // TxHistoryInfo::Issuing(asset::IssuingInfo { txid, .. })
             // | TxHistoryInfo::Burning(asset::BurningInfo { txid, .. })
@@ -2078,7 +2088,6 @@ impl TxHistoryInfo {
         match self {
             TxHistoryInfo::Funding(FundingInfo { vout: val, .. })
             | TxHistoryInfo::Spending(SpendingInfo { vin: val, .. }) => *val,
-
             // #[cfg(feature = "opcat_layer")]
             // TxHistoryInfo::Issuing(asset::IssuingInfo { vin: val, .. })
             // | TxHistoryInfo::Burning(asset::BurningInfo { vout: val, .. })
@@ -2091,7 +2100,6 @@ impl TxHistoryInfo {
         match self {
             TxHistoryInfo::Funding(_) => false,
             TxHistoryInfo::Spending(_) => true,
-
             // #[cfg(feature = "opcat_layer")]
             // TxHistoryInfo::Issuing(_) | TxHistoryInfo::Pegin(_) => true,
             // #[cfg(feature = "opcat_layer")]

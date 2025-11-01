@@ -27,14 +27,17 @@ const MAX_HEADERS: usize = 2016;
 #[cfg(feature = "electrum-discovery")]
 use crate::electrum::{DiscoveryManager, ServerFeatures};
 
-use crate::electrum::{ProtocolVersion, get_electrum_height};
-use crate::chain::{Txid, Transaction, BlockHeader, BlockHash, OutPoint};
-use crate::util::{BlockId, FullHash, full_hash, ScriptToAddr, ScriptToAsm, HeaderEntry, create_socket, spawn_thread, SyncChannel, Channel};
-use crate::util::electrum_merkle::{get_header_merkle_proof, get_tx_merkle_proof, get_id_from_pos};
-use crate::new_index::{Query, ChainQuery, Utxo, SpendingInput};
+use crate::chain::{BlockHash, BlockHeader, OutPoint, Transaction, Txid};
 use crate::config::{Config, VERSION_STRING};
+use crate::electrum::{get_electrum_height, ProtocolVersion};
 use crate::errors::*;
-use crate::metrics::{HistogramVec, HistogramOpts, MetricOpts, Metrics, Gauge};
+use crate::metrics::{Gauge, HistogramOpts, HistogramVec, MetricOpts, Metrics};
+use crate::new_index::{ChainQuery, Query, SpendingInput, Utxo};
+use crate::util::electrum_merkle::{get_header_merkle_proof, get_id_from_pos, get_tx_merkle_proof};
+use crate::util::{
+    create_socket, full_hash, spawn_thread, BlockId, Channel, FullHash, HeaderEntry, ScriptToAddr,
+    ScriptToAsm, SyncChannel,
+};
 
 // TODO: Sha256dHash should be a generic hash-container (since script hash is single SHA256)
 fn hash_from_value(val: Option<&Value>) -> Result<Sha256dHash> {
@@ -322,10 +325,10 @@ impl Connection {
             .into_iter()
             .map(|(txid, blockid)| {
                 let is_mempool = blockid.is_none();
-                let fee = if is_mempool { 
-                    self.query.get_mempool_tx_fee(&txid) 
-                } else { 
-                    None 
+                let fee = if is_mempool {
+                    self.query.get_mempool_tx_fee(&txid)
+                } else {
+                    None
                 };
                 let has_unconfirmed_parents = if is_mempool {
                     self.query.has_unconfirmed_parents(&txid)
@@ -340,7 +343,9 @@ impl Connection {
 
     fn blockchain_scripthash_listunspent(&self, params: &[Value]) -> Result<Value> {
         let script_hash = hash_from_value(params.first()).chain_err(|| "bad script_hash")?;
-        let utxos = self.query.utxo(&script_hash[..], None, self.query.config().utxos_limit)?;
+        let utxos = self
+            .query
+            .utxo(&script_hash[..], None, self.query.config().utxos_limit)?;
 
         let to_json = |utxo: Utxo| {
             let json = json!({

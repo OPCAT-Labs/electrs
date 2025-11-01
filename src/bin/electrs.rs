@@ -26,7 +26,6 @@ fn fetch_from(config: &Config, store: &Store) -> FetchFrom {
     FetchFrom::Bitcoind
 }
 
-
 fn run_server(config: Arc<Config>) -> Result<()> {
     let signal = Waiter::start();
     let metrics = Metrics::new(config.monitoring_addr);
