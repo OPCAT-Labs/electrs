@@ -18,7 +18,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 WORKDIR /build
 COPY . .
 
-RUN cargo build --release --bin electrs
+RUN cargo build --release --features opcat_layer --bin electrs
 
 FROM base as deploy
 
