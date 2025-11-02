@@ -5,7 +5,7 @@ env:
   DOCKER_BUILDKIT: 0
   COMPOSE_DOCKER_CLI_BUILD: 0
   REGISTRY: ghcr.io
-  IMAGE_NAME: opcat-labs/electrs
+  IMAGE_NAME: ${{ github.repository }}
 
 on:
   push:
@@ -98,7 +98,7 @@ jobs:
           --cache-from "type=local,src=/tmp/.buildx-cache" \
           --cache-to "type=local,dest=/tmp/.buildx-cache" \
           --platform linux/amd64,linux/arm64 \
-          --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG \
-          --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+          --tag ${{ env.REGISTRY }}/$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]'):$TAG \
+          --tag ${{ env.REGISTRY }}/$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]'):latest \
           --output "type=registry" . \
           --build-arg commitHash=$SHORT_SHA
