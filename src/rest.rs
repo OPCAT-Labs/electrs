@@ -1224,10 +1224,27 @@ fn handle_request(
             let script_hash = to_scripthash(script_type, script_str, config.network_type)?;
 
             // Parse pagination parameters
+            const MIN_UTXOS: usize = 10;
+            const MAX_UTXOS: usize = 500;
+
             let max_utxos = query_params
                 .get("max_utxos")
                 .and_then(|s| s.parse::<usize>().ok())
                 .unwrap_or(config.rest_default_max_mempool_txs); // Reuse mempool txs config for now
+
+            // Validate max_utxos range
+            if max_utxos < MIN_UTXOS {
+                return Err(HttpError(
+                    StatusCode::BAD_REQUEST,
+                    format!("max_utxos must be at least {}", MIN_UTXOS),
+                ));
+            }
+            if max_utxos > MAX_UTXOS {
+                return Err(HttpError(
+                    StatusCode::BAD_REQUEST,
+                    format!("max_utxos must not exceed {}", MAX_UTXOS),
+                ));
+            }
 
             let after_txid = query_params
                 .get("after_txid")

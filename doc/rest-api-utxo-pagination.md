@@ -19,7 +19,7 @@ Returns the list of unspent transaction outputs (UTXOs) for a given address or s
 |-----------|------|----------|---------|-------------|
 | `after_txid` | string (hex) | No | - | Cursor: Transaction ID to start pagination from |
 | `after_vout` | integer | No | - | Cursor: Output index (vout) to start pagination from |
-| `max_utxos` | integer | No | 50 | Maximum number of UTXOs to return per page |
+| `max_utxos` | integer | No | 50 | Maximum number of UTXOs per page (min: 10, max: 500) |
 
 ### Parameter Rules
 
@@ -27,6 +27,7 @@ Returns the list of unspent transaction outputs (UTXOs) for a given address or s
 - Providing only one will return a `400 Bad Request` error
 - The cursor (`after_txid:after_vout`) must exist (in mempool or chain), otherwise returns `422 Unprocessable Entity`
 - `max_utxos` determines the page size (default: 50, uses `rest_default_max_mempool_txs` config)
+- `max_utxos` must be between 10 and 500 (inclusive), otherwise returns `400 Bad Request`
 
 ## Response Format
 
@@ -128,6 +129,8 @@ curl "http://localhost:3000/scripthash/8b01df4e368ea28f8dc0423bcf7a4923e3a12d307
 
 ### 400 Bad Request
 
+#### Missing Cursor Parameter
+
 **Cause**: Only one of `after_txid` or `after_vout` was provided.
 
 **Response**:
@@ -140,6 +143,26 @@ or
 ```json
 {
   "error": "after_vout requires after_txid parameter"
+}
+```
+
+#### Invalid max_utxos Range
+
+**Cause**: `max_utxos` is below the minimum value (10).
+
+**Response**:
+```json
+{
+  "error": "max_utxos must be at least 10"
+}
+```
+
+**Cause**: `max_utxos` exceeds the maximum value (500).
+
+**Response**:
+```json
+{
+  "error": "max_utxos must not exceed 500"
 }
 ```
 
