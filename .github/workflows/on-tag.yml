@@ -97,7 +97,7 @@ jobs:
           docker buildx build \
           --cache-from "type=local,src=/tmp/.buildx-cache" \
           --cache-to "type=local,dest=/tmp/.buildx-cache" \
-          --platform linux/amd64,linux/arm64 \
+          --platform linux/amd64 \
           --tag ${{ env.REGISTRY }}/$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]'):$TAG \
           --tag ${{ env.REGISTRY }}/$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]'):latest \
           --output "type=registry" . \
