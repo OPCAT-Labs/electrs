@@ -1,4 +1,3 @@
-
 use crate::chain::{Network, Script, TxIn, TxOut};
 use bitcoin::blockdata::script::Instruction;
 
@@ -29,7 +28,9 @@ impl ScriptToAddr for bitcoin::Script {
 pub fn get_innerscripts(txin: &TxIn, prevout: &TxOut) -> InnerScripts {
     // Wrapped redeemScript for P2SH spends
     let redeem_script = if prevout.script_pubkey.is_p2sh() {
-        if let Some(Ok(Instruction::PushBytes(redeemscript))) = txin.script_sig.instructions().last() {
+        if let Some(Ok(Instruction::PushBytes(redeemscript))) =
+            txin.script_sig.instructions().last()
+        {
             Some(Script::from(redeemscript.to_vec()))
         } else {
             None

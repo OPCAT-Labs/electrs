@@ -1,14 +1,16 @@
 use std::io;
 
-use bitcoin::{consensus::{Decodable, Encodable}, util::hash::bitcoin_merkle_root, TxMerkleNode, VarInt};
+use bitcoin::{
+    consensus::{Decodable, Encodable},
+    util::hash::bitcoin_merkle_root,
+    TxMerkleNode, VarInt,
+};
 
 use crate::opcat_layer::blockdata::transaction::Transaction;
 use crate::opcat_layer::consensus::encode::{Error, MAX_VEC_SIZE};
 
 pub type BlockHeader = bitcoin::BlockHeader;
 pub type BlockHash = bitcoin::BlockHash;
-
-
 
 // OPCAT Layer block structure
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -39,7 +41,10 @@ impl Block {
     }
 
     /// Calculate the transaction merkle root.
-    #[deprecated(since = "0.28.0", note = "Please use `block::compute_merkle_root` instead.")]
+    #[deprecated(
+        since = "0.28.0",
+        note = "Please use `block::compute_merkle_root` instead."
+    )]
     pub fn merkle_root(&self) -> Option<TxMerkleNode> {
         self.compute_merkle_root()
     }
@@ -64,7 +69,10 @@ impl Block {
     }
 
     /// Returns the strippedsize of the block.
-    #[deprecated(since = "0.28.0", note = "Please use `transaction::strippedsize` instead.")]
+    #[deprecated(
+        since = "0.28.0",
+        note = "Please use `transaction::strippedsize` instead."
+    )]
     pub fn get_strippedsize(&self) -> usize {
         self.strippedsize()
     }
@@ -83,7 +91,7 @@ impl Block {
 
     /// Returns the weight of the block.
     pub fn weight(&self) -> usize {
-        let base_weight = 1 * self.base_size();
+        let base_weight = self.base_size();
         let txs_weight: usize = self.txdata.iter().map(Transaction::weight).sum();
         base_weight + txs_weight
     }
@@ -92,7 +100,6 @@ impl Block {
     pub fn coinbase(&self) -> Option<&Transaction> {
         self.txdata.first()
     }
-
 }
 
 impl Decodable for Block {

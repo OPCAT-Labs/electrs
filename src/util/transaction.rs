@@ -4,7 +4,6 @@ use crate::util::BlockId;
 
 use std::collections::HashMap;
 
-
 #[derive(Serialize, Deserialize)]
 pub struct TransactionStatus {
     pub confirmed: bool,
@@ -56,7 +55,7 @@ pub fn has_prevout(txin: &TxIn) -> bool {
 }
 
 pub fn is_spendable(txout: &TxOut) -> bool {
-    return !txout.script_pubkey.is_provably_unspendable();
+    !txout.script_pubkey.is_provably_unspendable()
 }
 
 /// Extract the previous TxOuts of a Transaction's TxIns
@@ -101,17 +100,16 @@ where
 
 pub(super) mod sigops {
     use crate::chain::{
-        hashes::hex::FromHex,
         opcodes::{
             all::{OP_CHECKMULTISIG, OP_CHECKMULTISIGVERIFY, OP_CHECKSIG, OP_CHECKSIGVERIFY},
             All,
         },
         script::{self, Instruction},
-        Transaction, TxOut, 
+        Transaction, TxOut,
     };
-        
+
     #[cfg(not(feature = "opcat_layer"))]
-    use crate::chain::Witness;
+    use crate::chain::{hashes::hex::FromHex, Witness};
 
     use std::collections::HashMap;
 
@@ -292,6 +290,7 @@ pub(super) mod sigops {
         verify_p2sh: bool,
         verify_witness: bool,
     ) -> Result<usize, script::Error> {
+        #[cfg_attr(feature = "opcat_layer", allow(unused_mut))]
         let mut n_sigop_cost = get_legacy_sigop_count(tx) * 4;
         if tx.is_coin_base() {
             return Ok(n_sigop_cost);

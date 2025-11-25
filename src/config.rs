@@ -11,7 +11,6 @@ use crate::chain::Network;
 use crate::daemon::CookieGetter;
 use crate::errors::*;
 
-
 pub(crate) const APP_NAME: &str = "mempool-electrs";
 pub(crate) const ELECTRS_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub(crate) const GIT_HASH: Option<&str> = option_env!("GIT_HASH");
@@ -287,7 +286,6 @@ impl Config {
                     .takes_value(true),
             );
 
-
         #[cfg(feature = "electrum-discovery")]
         let args = args.arg(
                 Arg::with_name("electrum_public_hosts")
@@ -321,7 +319,6 @@ impl Config {
         let db_dir = Path::new(m.value_of("db_dir").unwrap_or("./db"));
         let db_path = db_dir.join(network_name);
 
-
         let default_daemon_port = match network_type {
             #[cfg(not(feature = "opcat_layer"))]
             Network::Bitcoin => 8332,
@@ -335,11 +332,11 @@ impl Config {
             Network::Testnet4 => 48332,
 
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerMainnet => 8333,     // Custom port for OPCAT Layer mainnet
+            Network::OpcatLayerMainnet => 8333, // Custom port for OPCAT Layer mainnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerTestnet => 28444,    // Custom port for OPCAT Layer testnet
+            Network::OpcatLayerTestnet => 28444, // Custom port for OPCAT Layer testnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerRegtest => 38444,    // Custom port for OPCAT Layer regtest
+            Network::OpcatLayerRegtest => 38444, // Custom port for OPCAT Layer regtest
         };
         let default_electrum_port = match network_type {
             #[cfg(not(feature = "opcat_layer"))]
@@ -354,11 +351,11 @@ impl Config {
             Network::Signet => 60601,
 
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerMainnet => 50002,    // Custom Electrum port for OPCAT Layer mainnet
+            Network::OpcatLayerMainnet => 50002, // Custom Electrum port for OPCAT Layer mainnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerTestnet => 60002,    // Custom Electrum port for OPCAT Layer testnet
+            Network::OpcatLayerTestnet => 60002, // Custom Electrum port for OPCAT Layer testnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerRegtest => 60402,    // Custom Electrum port for OPCAT Layer regtest
+            Network::OpcatLayerRegtest => 60402, // Custom Electrum port for OPCAT Layer regtest
         };
         let default_http_port = match network_type {
             #[cfg(not(feature = "opcat_layer"))]
@@ -373,11 +370,11 @@ impl Config {
             Network::Testnet4 => 3004,
 
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerMainnet => 3005,     // Custom HTTP port for OPCAT Layer mainnet
+            Network::OpcatLayerMainnet => 3005, // Custom HTTP port for OPCAT Layer mainnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerTestnet => 3006,     // Custom HTTP port for OPCAT Layer testnet
+            Network::OpcatLayerTestnet => 3006, // Custom HTTP port for OPCAT Layer testnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerRegtest => 3007,     // Custom HTTP port for OPCAT Layer regtest
+            Network::OpcatLayerRegtest => 3007, // Custom HTTP port for OPCAT Layer regtest
         };
         let default_monitoring_port = match network_type {
             #[cfg(not(feature = "opcat_layer"))]
@@ -392,11 +389,11 @@ impl Config {
             Network::Signet => 54224,
 
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerMainnet => 4225,     // Custom monitoring port for OPCAT Layer mainnet
+            Network::OpcatLayerMainnet => 4225, // Custom monitoring port for OPCAT Layer mainnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerTestnet => 14225,    // Custom monitoring port for OPCAT Layer testnet
+            Network::OpcatLayerTestnet => 14225, // Custom monitoring port for OPCAT Layer testnet
             #[cfg(feature = "opcat_layer")]
-            Network::OpcatLayerRegtest => 24225,    // Custom monitoring port for OPCAT Layer regtest
+            Network::OpcatLayerRegtest => 24225, // Custom monitoring port for OPCAT Layer regtest
         };
 
         let daemon_rpc_addr: SocketAddr = str_to_socketaddr(
@@ -537,7 +534,6 @@ impl Config {
                     .exit(),
                 },
             ),
-
 
             #[cfg(feature = "electrum-discovery")]
             electrum_public_hosts,

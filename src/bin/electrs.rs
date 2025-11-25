@@ -20,12 +20,11 @@ use electrs::{
     signal::Waiter,
 };
 
-fn fetch_from(config: &Config, store: &Store) -> FetchFrom {
+fn fetch_from(_config: &Config, _store: &Store) -> FetchFrom {
     // Determine whether to fetch blocks from bitcoind or block files
     // For now, default to bitcoind. This logic can be enhanced later.
     FetchFrom::Bitcoind
 }
-
 
 fn run_server(config: Arc<Config>) -> Result<()> {
     let signal = Waiter::start();

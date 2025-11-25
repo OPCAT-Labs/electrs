@@ -31,13 +31,13 @@ use crate::opcat_layer::Network;
 
 use crate::opcat_layer::blockdata::{
     block::{Block, BlockHeader},
-    transaction::{Transaction, TxIn, TxOut, OutPoint},
-    script::{self},
-    units::Amount,
     opcodes,
+    script::{self},
+    transaction::{OutPoint, Transaction, TxIn, TxOut},
+    units::Amount,
 };
 
-use bitcoin::hashes::hex::{HexIterator, Error as HexError};
+use bitcoin::hashes::hex::{Error as HexError, HexIterator};
 // use hashes::sha256d;
 // use blockdata::opcodes;
 // use blockdata::script;
@@ -101,10 +101,11 @@ fn genesis_tx() -> Transaction {
     };
 
     // Inputs
-    let in_script = script::Builder::new().push_scriptint(486604799)
-                                          .push_scriptint(4)
-                                          .push_slice(b"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks")
-                                          .into_script();
+    let in_script = script::Builder::new()
+        .push_scriptint(486604799)
+        .push_scriptint(4)
+        .push_slice(b"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks")
+        .into_script();
     ret.input.push(TxIn {
         previous_output: OutPoint::null(),
         script_sig: in_script,
@@ -135,45 +136,39 @@ pub fn genesis_block(network: Network) -> Block {
     let hash: sha256d::Hash = txdata[0].txid().into();
     let merkle_root = hash.into();
     match network {
-        Network::Mainnet => {
-            Block {
-                header: BlockHeader {
-                    version: 1,
-                    prev_blockhash: Default::default(),
-                    merkle_root,
-                    time: 1231006505,
-                    bits: 0x1d00ffff,
-                    nonce: 2083236893
-                },
-                txdata,
-            }
-        }
-        Network::Testnet => {
-            Block {
-                header: BlockHeader {
-                    version: 1,
-                    prev_blockhash: Default::default(),
-                    merkle_root,
-                    time: 1296688602,
-                    bits: 0x1d00ffff,
-                    nonce: 414098458
-                },
-                txdata,
-            }
-        }
-        Network::Regtest => {
-            Block {
-                header: BlockHeader {
-                    version: 1,
-                    prev_blockhash: Default::default(),
-                    merkle_root,
-                    time: 1296688602,
-                    bits: 0x207fffff,
-                    nonce: 2
-                },
-                txdata,
-            }
-        }
+        Network::Mainnet => Block {
+            header: BlockHeader {
+                version: 1,
+                prev_blockhash: Default::default(),
+                merkle_root,
+                time: 1231006505,
+                bits: 0x1d00ffff,
+                nonce: 2083236893,
+            },
+            txdata,
+        },
+        Network::Testnet => Block {
+            header: BlockHeader {
+                version: 1,
+                prev_blockhash: Default::default(),
+                merkle_root,
+                time: 1296688602,
+                bits: 0x1d00ffff,
+                nonce: 414098458,
+            },
+            txdata,
+        },
+        Network::Regtest => Block {
+            header: BlockHeader {
+                version: 1,
+                prev_blockhash: Default::default(),
+                merkle_root,
+                time: 1296688602,
+                bits: 0x207fffff,
+                nonce: 2,
+            },
+            txdata,
+        },
     }
 }
 
@@ -239,4 +234,3 @@ pub fn genesis_block(network: Network) -> Block {
 //     }
 
 // }
-

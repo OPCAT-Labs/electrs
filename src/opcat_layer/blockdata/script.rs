@@ -9,7 +9,7 @@ pub use bitcoin::blockdata::script::*;
 // /// OPCAT Layer specific opcodes
 // pub mod opcodes {
 //     pub use bitcoin::blockdata::opcodes::*;
-//     
+//
 //     // Custom OPCAT opcodes
 //     pub const OP_CAT: u8 = 0x7e;  // Concatenate two byte arrays
 //     pub const OP_OPCAT_VERIFY: u8 = 0xba;  // Custom OPCAT verification

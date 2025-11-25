@@ -6,11 +6,10 @@ use std::path::PathBuf;
 use std::thread;
 
 use crate::chain::{Block, BlockHash};
-use crate::util::HeaderEntry;
 use crate::daemon::Daemon;
 use crate::errors::*;
+use crate::util::HeaderEntry;
 use crate::util::{spawn_thread, SyncChannel};
-
 
 use bitcoin::consensus::encode::{deserialize, Decodable};
 

@@ -94,10 +94,20 @@ fn main() {
         #[cfg(feature = "opcat_layer")]
         let total_out: u64 = tx.output.iter().map(|out| out.value.as_sat()).sum();
         #[cfg(feature = "opcat_layer")]
-        let small_out = tx.output.iter().map(|out| out.value.as_sat()).min().unwrap();
+        let small_out = tx
+            .output
+            .iter()
+            .map(|out| out.value.as_sat())
+            .min()
+            .unwrap();
         #[cfg(feature = "opcat_layer")]
-        let large_out = tx.output.iter().map(|out| out.value.as_sat()).max().unwrap();
-        
+        let large_out = tx
+            .output
+            .iter()
+            .map(|out| out.value.as_sat())
+            .max()
+            .unwrap();
+
         #[cfg(not(feature = "opcat_layer"))]
         let total_out: u64 = tx.output.iter().map(|out| out.value).sum();
         #[cfg(not(feature = "opcat_layer"))]
@@ -108,8 +118,12 @@ fn main() {
         #[cfg(feature = "opcat_layer")]
         let total_in: u64 = prevouts.values().map(|out| out.value.as_sat()).sum();
         #[cfg(feature = "opcat_layer")]
-        let smallest_in = prevouts.values().map(|out| out.value.as_sat()).min().unwrap();
-        
+        let smallest_in = prevouts
+            .values()
+            .map(|out| out.value.as_sat())
+            .min()
+            .unwrap();
+
         #[cfg(not(feature = "opcat_layer"))]
         let total_in: u64 = prevouts.values().map(|out| out.value).sum();
         #[cfg(not(feature = "opcat_layer"))]
@@ -158,4 +172,3 @@ fn main() {
         total, uih_totals
     );
 }
-

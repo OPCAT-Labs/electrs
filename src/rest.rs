@@ -5,9 +5,7 @@ use crate::metrics::Metrics;
 use crate::new_index::{compute_script_hash, Query, SpendingInput, Utxo};
 use crate::util::{
     create_socket, electrum_merkle, extract_tx_prevouts, full_hash, get_innerscripts, get_tx_fee,
-    has_prevout, is_coinbase, 
-    transaction_sigop_count, 
-    BlockHeaderMeta, BlockId, FullHash,
+    has_prevout, is_coinbase, transaction_sigop_count, BlockHeaderMeta, BlockId, FullHash,
     ScriptToAddr, ScriptToAsm, TransactionStatus,
 };
 
@@ -46,7 +44,6 @@ const TTL_MEMPOOL_RECENT: u32 = 60; // 1 minute
 const CONF_FINAL: usize = 100; // consider transactions final after 100 confirmations
 const INTERNAL_PREFIX: &str = "internal";
 
-
 #[derive(Serialize)]
 struct BlockValue {
     id: String,
@@ -59,14 +56,13 @@ struct BlockValue {
     merkle_root: String,
     previousblockhash: Option<String>,
     mediantime: u32,
-    
+
     #[cfg(not(feature = "opcat_layer"))]
     bits: u32,
     #[cfg(not(feature = "opcat_layer"))]
     nonce: u32,
     #[cfg(not(feature = "opcat_layer"))]
     difficulty: f64,
-    
     // #[cfg(feature = "opcat_layer")]
     // ext: Option<serde_json::Value>,
 }
@@ -133,6 +129,7 @@ fn difficulty_new(bh: &bitcoin::BlockHeader) -> f64 {
 }
 
 #[cfg(feature = "opcat_layer")]
+#[allow(dead_code)]
 fn difficulty_new_opcat(bh: &crate::chain::BlockHeader) -> f64 {
     let mut n_shift = bh.bits >> 24 & 0xff;
     let mut d_diff = (0x0000ffff as f64) / ((bh.bits & 0x00ffffff) as f64);
@@ -218,7 +215,7 @@ struct TxInValue {
     #[cfg(not(feature = "opcat_layer"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     witness: Option<Vec<String>>,
-    
+
     is_coinbase: bool,
     sequence: u32,
 
@@ -226,7 +223,6 @@ struct TxInValue {
     inner_redeemscript_asm: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     inner_witnessscript_asm: Option<String>,
-
 }
 
 impl TxInValue {
@@ -289,7 +285,6 @@ struct TxOutValue {
 
     #[cfg(feature = "opcat_layer")]
     data: String,
-
 }
 
 impl TxOutValue {
@@ -390,7 +385,6 @@ struct UtxoValue {
 
     #[cfg(feature = "opcat_layer")]
     data: String,
-
 }
 impl From<Utxo> for UtxoValue {
     fn from(utxo: Utxo) -> Self {
@@ -398,7 +392,10 @@ impl From<Utxo> for UtxoValue {
             txid: utxo.txid,
             vout: utxo.vout,
             status: TransactionStatus::from(utxo.confirmed),
+            #[cfg(feature = "opcat_layer")]
             value: utxo.value.into(),
+            #[cfg(not(feature = "opcat_layer"))]
+            value: utxo.value,
 
             #[cfg(feature = "opcat_layer")]
             data: utxo.data.to_hex(),
@@ -455,6 +452,27 @@ fn find_txid(
         TxidLocation::Chain(block.height as u32)
     } else {
         TxidLocation::None
+    }
+}
+
+enum OutPointLocation {
+    Mempool,
+    Chain(()),
+    None,
+}
+
+#[inline]
+fn find_outpoint(
+    outpoint: &OutPoint,
+    mempool: &crate::new_index::Mempool,
+    chain: &crate::new_index::ChainQuery,
+) -> OutPointLocation {
+    if mempool.lookup_txo(outpoint).is_some() {
+        OutPointLocation::Mempool
+    } else if chain.tx_confirming_block(&outpoint.txid).is_some() {
+        OutPointLocation::Chain(())
+    } else {
+        OutPointLocation::None
     }
 }
 
@@ -1204,12 +1222,73 @@ fn handle_request(
             None,
         ) => {
             let script_hash = to_scripthash(script_type, script_str, config.network_type)?;
+
+            // Parse pagination parameters
+            const MIN_UTXOS: usize = 10;
+            const MAX_UTXOS: usize = 500;
+
+            let max_utxos = query_params
+                .get("max_utxos")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(config.rest_default_max_mempool_txs); // Reuse mempool txs config for now
+
+            // Validate max_utxos range
+            if max_utxos < MIN_UTXOS {
+                return Err(HttpError(
+                    StatusCode::BAD_REQUEST,
+                    format!("max_utxos must be at least {}", MIN_UTXOS),
+                ));
+            }
+            if max_utxos > MAX_UTXOS {
+                return Err(HttpError(
+                    StatusCode::BAD_REQUEST,
+                    format!("max_utxos must not exceed {}", MAX_UTXOS),
+                ));
+            }
+
+            let after_txid = query_params
+                .get("after_txid")
+                .and_then(|s| s.parse::<Txid>().ok());
+
+            let after_vout = query_params
+                .get("after_vout")
+                .and_then(|s| s.parse::<u32>().ok());
+
+            // Construct after_outpoint if both txid and vout are provided
+            let after_outpoint = match (after_txid, after_vout) {
+                (Some(txid), Some(vout)) => Some(OutPoint { txid, vout }),
+                (Some(_), None) => {
+                    return Err(HttpError(
+                        StatusCode::BAD_REQUEST,
+                        String::from("after_txid requires after_vout parameter"),
+                    ));
+                }
+                (None, Some(_)) => {
+                    return Err(HttpError(
+                        StatusCode::BAD_REQUEST,
+                        String::from("after_vout requires after_txid parameter"),
+                    ));
+                }
+                (None, None) => None,
+            };
+
+            // Validate after_outpoint exists if provided
+            if let Some(ref outpoint) = after_outpoint {
+                let location = find_outpoint(outpoint, &query.mempool(), query.chain());
+                if matches!(location, OutPointLocation::None) {
+                    return Err(HttpError(
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        String::from("after_txid:after_vout not found"),
+                    ));
+                }
+            }
+
             let utxos: Vec<UtxoValue> = query
-                .utxo(&script_hash[..])?
+                .utxo(&script_hash[..], after_outpoint.as_ref(), max_utxos)?
                 .into_iter()
                 .map(UtxoValue::from)
                 .collect();
-            // XXX paging?
+
             json_response(utxos, TTL_SHORT)
         }
         (&Method::GET, Some(&"address-prefix"), Some(prefix), None, None, None) => {
@@ -1743,7 +1822,10 @@ fn to_scripthash(
     }
 }
 
-fn address_to_scripthash(addr: &str, network: Network) -> Result<FullHash, HttpError> {
+fn address_to_scripthash(
+    addr: &str,
+    #[cfg_attr(feature = "opcat_layer", allow(unused_variables))] network: Network,
+) -> Result<FullHash, HttpError> {
     let addr = address::Address::from_str(addr)?;
 
     #[cfg(not(feature = "opcat_layer"))]
