@@ -1402,6 +1402,46 @@ fn handle_request(
                 ttl_by_depth(height, query),
             )
         }
+        (&Method::GET, Some(&"tx"), Some(hash), Some(&"out"), Some(index), None) => {
+            let txid = Txid::from_hex(hash)?;
+            let vout = index.parse::<u32>()?;
+            let outpoint = OutPoint { txid, vout };
+
+            // Look up TxOut from chain or mempool
+            let txout = query
+                .chain()
+                .lookup_txo(&outpoint)
+                .or_else(|| {
+                    let mut outpoints = std::collections::BTreeSet::new();
+                    outpoints.insert(outpoint);
+                    query
+                        .mempool()
+                        .lookup_txos(&outpoints)
+                        .get(&outpoint)
+                        .cloned()
+                })
+                .ok_or_else(|| HttpError::not_found("Output not found".to_string()))?;
+
+            // Build response
+            #[cfg(not(feature = "opcat_layer"))]
+            let response = serde_json::json!({
+                "scriptpubkey": txout.script_pubkey.to_hex(),
+                "value": txout.value,
+            });
+
+            #[cfg(feature = "opcat_layer")]
+            let response = serde_json::json!({
+                "scriptpubkey": txout.script_pubkey.to_hex(),
+                "value": txout.value.as_sat(),
+                "data": hex::encode(&txout.data),
+            });
+
+            // Determine TTL based on confirmation status
+            let block_id = query.chain().tx_confirming_block(&txid);
+            let ttl = ttl_by_depth(block_id.as_ref().map(|b| b.height), query);
+
+            json_response(response, ttl)
+        }
         (&Method::GET, Some(&"tx"), Some(hash), Some(&"outspend"), Some(index), None) => {
             let hash = Txid::from_hex(hash)?;
             let outpoint = OutPoint {
