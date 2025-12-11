@@ -344,9 +344,18 @@ impl Daemon {
         };
         let network_info = daemon.getnetworkinfo()?;
         info!("{:?}", network_info);
+        #[cfg(not(feature = "opcat_layer"))]
         if network_info.version < 16_00_00 {
             bail!(
                 "{} is not supported - please use bitcoind 0.16+",
+                network_info.subversion,
+            )
+        }
+
+        #[cfg(feature = "opcat_layer")]
+        if !network_info.subversion.starts_with("/OpcatLayer:") {
+            bail!(
+                "{} is not a valid OpcatLayer node - expected /OpcatLayer:X.Y.Z/ format",
                 network_info.subversion,
             )
         }
