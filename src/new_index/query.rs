@@ -5,8 +5,6 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 #[cfg(not(feature = "opcat_layer"))]
 use std::time::{Duration, Instant};
 
-#[cfg(feature = "opcat_layer")]
-use crate::chain::FEE_RATE;
 use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid};
 use crate::config::Config;
 use crate::daemon::{Daemon, MempoolAcceptResult, SubmitPackageResult};
@@ -209,7 +207,7 @@ impl Query {
         }
 
         #[cfg(feature = "opcat_layer")]
-        return Some(FEE_RATE);
+        return self.daemon.get_mempoolminfee().ok();
 
         #[cfg(not(feature = "opcat_layer"))]
         {
@@ -231,7 +229,15 @@ impl Query {
 
     pub fn estimate_fee_map(&self) -> HashMap<u16, f64> {
         #[cfg(feature = "opcat_layer")]
-        return HashMap::from([(1, FEE_RATE)]);
+        {
+            match self.daemon.get_mempoolminfee() {
+                Ok(fee) => return HashMap::from([(1, fee)]),
+                Err(err) => {
+                    warn!("failed to get mempoolminfee: {:?}", err);
+                    return HashMap::new();
+                }
+            }
+        }
 
         #[cfg(not(feature = "opcat_layer"))]
         {

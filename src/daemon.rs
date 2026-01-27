@@ -95,6 +95,8 @@ pub struct BlockchainInfo {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MempoolInfo {
     pub loaded: bool,
+    #[cfg(feature = "opcat_layer")]
+    pub mempoolminfee: f64, // in BTC/kB
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -525,6 +527,12 @@ impl Daemon {
     fn getmempoolinfo(&self) -> Result<MempoolInfo> {
         let info: Value = self.request("getmempoolinfo", json!([]))?;
         from_value(info).chain_err(|| "invalid mempool info")
+    }
+
+    #[cfg(feature = "opcat_layer")]
+    pub fn get_mempoolminfee(&self) -> Result<f64> {
+        let info = self.getmempoolinfo()?;
+        Ok(info.mempoolminfee)
     }
 
     fn getnetworkinfo(&self) -> Result<NetworkInfo> {

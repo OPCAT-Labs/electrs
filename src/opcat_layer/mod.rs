@@ -8,7 +8,7 @@ pub use address::Address;
 pub use blockdata::block::{Block, BlockHash, BlockHeader};
 pub use blockdata::transaction::{OutPoint, Transaction, TxIn, TxOut, Txid};
 pub use blockdata::units::Amount;
-pub use network::constants::{Network, FEE_RATE};
+pub use network::constants::Network;
 
 pub use self::blockdata::script::{Error as ScriptError, Instruction, Script};
 pub use self::consensus::encode::{deserialize, serialize};
