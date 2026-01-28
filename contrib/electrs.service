@@ -5,10 +5,10 @@ Documentation=https://github.com/OPCAT-Labs/electrs
 
 [Service]
 Type=simple
-User=electrs
-Group=electrs
-WorkingDirectory=/var/lib/electrs
-ExecStart=/usr/local/bin/electrs --db-dir /var/lib/electrs/db --daemon-dir /var/lib/bitcoind
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${ELECTRS_WORKDIR}
+ExecStart=/usr/local/bin/electrs ${ELECTRS_ARGS}
 Restart=on-failure
 RestartSec=10
 Environment="RUST_BACKTRACE=1"
@@ -18,7 +18,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/var/lib/electrs
+ReadWritePaths=${ELECTRS_WORKDIR}
 
 # Resource limits
 LimitNOFILE=65536
