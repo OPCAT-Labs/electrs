@@ -37,15 +37,14 @@ if [[ -n $(git status -s) ]]; then
     fi
 fi
 
-# Image names
-LOCAL_IMAGE="mempool-electrs:latest"
+# Image name
 REMOTE_IMAGE="ghcr.io/opcat-labs/electrs:${COMMIT_ID}"
 
-echo -e "${GREEN}Step 1/3: Building Docker image${NC}"
-echo -e "Local image: ${LOCAL_IMAGE}"
+echo -e "${GREEN}Step 1/2: Building Docker image${NC}"
+echo -e "Image: ${REMOTE_IMAGE}"
 echo ""
 
-if docker build -t "${LOCAL_IMAGE}" .; then
+if docker build -t "${REMOTE_IMAGE}" .; then
     echo -e "${GREEN}✓ Build successful${NC}"
     echo ""
 else
@@ -53,19 +52,7 @@ else
     exit 1
 fi
 
-echo -e "${GREEN}Step 2/3: Tagging image${NC}"
-echo -e "Remote image: ${REMOTE_IMAGE}"
-echo ""
-
-if docker tag "${LOCAL_IMAGE}" "${REMOTE_IMAGE}"; then
-    echo -e "${GREEN}✓ Tag successful${NC}"
-    echo ""
-else
-    echo -e "${RED}✗ Tag failed${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}Step 3/3: Pushing image to registry${NC}"
+echo -e "${GREEN}Step 2/2: Pushing image to registry${NC}"
 echo -e "Pushing to: ${REMOTE_IMAGE}"
 echo ""
 
