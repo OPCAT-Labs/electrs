@@ -8,7 +8,33 @@ API documentation [is available here](https://mempool.space/docs/api/rest).
 
 Documentation for the database schema and indexing process [is available here](doc/schema.md).
 
-### Installing & indexing
+## Installation
+
+### Pre-built Binaries (Recommended)
+
+Download pre-built binaries from the [releases page](https://github.com/OPCAT-Labs/electrs/releases).
+
+**Quick install:**
+```bash
+VERSION=3.3.0
+wget https://github.com/OPCAT-Labs/electrs/releases/download/v${VERSION}/electrs-v${VERSION}-linux-x86_64-musl.tar.gz
+wget https://github.com/OPCAT-Labs/electrs/releases/download/v${VERSION}/SHA256SUMS
+
+# Verify checksum
+sha256sum -c SHA256SUMS --ignore-missing
+
+# Extract and install
+tar xzf electrs-v${VERSION}-linux-x86_64-musl.tar.gz
+sudo cp electrs-v${VERSION}-linux-x86_64-musl/bin/electrs /usr/local/bin/
+```
+
+See [docs/INSTALL.md](docs/INSTALL.md) for detailed installation instructions, including:
+- Binary verification with GPG signatures
+- systemd service setup
+- PM2 process manager setup
+- Configuration options
+
+### Building from Source
 
 Install Rust, Bitcoin Core (no `txindex` needed) and the `clang` and `cmake` packages, then:
 

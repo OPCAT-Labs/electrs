@@ -1,18 +1,27 @@
 [Unit]
-Description=Electrum Rust Server
+Description=Electrs Electrum Server
+After=network.target
+Documentation=https://github.com/OPCAT-Labs/electrs
 
 [Service]
 Type=simple
-ExecStart=/path/to/electrs/target/release/electrs -vvvv --db-dir /path/to/electrs/db/
+User=electrs
+Group=electrs
+WorkingDirectory=/var/lib/electrs
+ExecStart=/usr/local/bin/electrs --db-dir /var/lib/electrs/db --daemon-dir /var/lib/bitcoind
 Restart=on-failure
-RestartSec=60
+RestartSec=10
 Environment="RUST_BACKTRACE=1"
 
-# Hardening measures
+# Security hardening
+NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-NoNewPrivileges=true
-MemoryDenyWriteExecute=true
+ProtectHome=true
+ReadWritePaths=/var/lib/electrs
+
+# Resource limits
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
