@@ -1,0 +1,211 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: "1.83"
+
+jobs:
+  build-linux-gnu:
+    name: Build Linux GNU (x86_64)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librocksdb-dev clang cmake
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Build binary
+        run: |
+          cargo build --release --features opcat_layer --target x86_64-unknown-linux-gnu
+          strip target/x86_64-unknown-linux-gnu/release/electrs
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create tarball
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          ARCHIVE_NAME="electrs-v${VERSION}-linux-x86_64-gnu"
+          mkdir -p "${ARCHIVE_NAME}/bin"
+          mkdir -p "${ARCHIVE_NAME}/contrib"
+          mkdir -p "${ARCHIVE_NAME}/docs"
+
+          cp target/x86_64-unknown-linux-gnu/release/electrs "${ARCHIVE_NAME}/bin/"
+          cp LICENSE "${ARCHIVE_NAME}/"
+          cp README.md "${ARCHIVE_NAME}/"
+
+          if [ -f contrib/electrs.service ]; then
+            cp contrib/electrs.service "${ARCHIVE_NAME}/contrib/"
+          fi
+
+          if [ -f docs/INSTALL.md ]; then
+            cp docs/INSTALL.md "${ARCHIVE_NAME}/docs/"
+          fi
+
+          tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-gnu-binary
+          path: electrs-v*.tar.gz
+          retention-days: 1
+
+  build-linux-musl:
+    name: Build Linux MUSL (x86_64)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Build static binary
+        run: |
+          cross build --release --features opcat_layer --target x86_64-unknown-linux-musl
+          strip target/x86_64-unknown-linux-musl/release/electrs
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create tarball
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          ARCHIVE_NAME="electrs-v${VERSION}-linux-x86_64-musl"
+          mkdir -p "${ARCHIVE_NAME}/bin"
+          mkdir -p "${ARCHIVE_NAME}/contrib"
+          mkdir -p "${ARCHIVE_NAME}/docs"
+
+          cp target/x86_64-unknown-linux-musl/release/electrs "${ARCHIVE_NAME}/bin/"
+          cp LICENSE "${ARCHIVE_NAME}/"
+          cp README.md "${ARCHIVE_NAME}/"
+
+          if [ -f contrib/electrs.service ]; then
+            cp contrib/electrs.service "${ARCHIVE_NAME}/contrib/"
+          fi
+
+          if [ -f docs/INSTALL.md ]; then
+            cp docs/INSTALL.md "${ARCHIVE_NAME}/docs/"
+          fi
+
+          tar czf "${ARCHIVE_NAME}.tar.gz" "${ARCHIVE_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-musl-binary
+          path: electrs-v*.tar.gz
+          retention-days: 1
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-linux-gnu, build-linux-musl]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd artifacts
+          find . -name "*.tar.gz" -exec mv {} . \;
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Import GPG key
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --list-secret-keys
+
+      - name: Sign checksums
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          cd artifacts
+          gpg --batch --yes --detach-sign --armor SHA256SUMS
+          ls -la SHA256SUMS*
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*.tar.gz
+            artifacts/SHA256SUMS
+            artifacts/SHA256SUMS.asc
+          body: |
+            ## electrs v${{ steps.get_version.outputs.VERSION }}
+
+            ### Downloads
+
+            - **Linux x86_64 (MUSL - Recommended)**: Static binary, works on any Linux distribution
+            - **Linux x86_64 (GNU)**: Dynamic binary, requires librocksdb installed
+
+            ### Verification
+
+            1. Download the binary and checksums:
+               ```bash
+               wget https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/electrs-v${{ steps.get_version.outputs.VERSION }}-linux-x86_64-musl.tar.gz
+               wget https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/SHA256SUMS
+               ```
+
+            2. Verify checksum:
+               ```bash
+               sha256sum -c SHA256SUMS --ignore-missing
+               ```
+
+            3. (Optional) Verify GPG signature:
+               ```bash
+               wget https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/SHA256SUMS.asc
+               gpg --verify SHA256SUMS.asc SHA256SUMS
+               ```
+
+            ### Installation
+
+            See [docs/INSTALL.md](https://github.com/${{ github.repository }}/blob/main/docs/INSTALL.md) for detailed installation instructions.
+
+            ### What's Changed
+
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

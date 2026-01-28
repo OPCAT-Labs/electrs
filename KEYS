@@ -1,0 +1,48 @@
+# GPG Public Keys for Release Verification
+
+This file contains the GPG public keys used to sign electrs releases.
+
+## How to Import
+
+```bash
+# Import from this file
+curl -sL https://raw.githubusercontent.com/OPCAT-Labs/electrs/main/KEYS | gpg --import
+
+# Or download and import manually
+gpg --import KEYS
+```
+
+## How to Verify Releases
+
+After importing the key, verify release signatures:
+
+```bash
+# Download release files
+wget https://github.com/OPCAT-Labs/electrs/releases/download/v3.3.0/SHA256SUMS
+wget https://github.com/OPCAT-Labs/electrs/releases/download/v3.3.0/SHA256SUMS.asc
+
+# Verify signature
+gpg --verify SHA256SUMS.asc SHA256SUMS
+```
+
+---
+
+## Release Signing Key
+
+**Note**: The actual GPG public key will be added here once generated.
+
+To generate and add the key, follow the instructions in `docs/GPG_SETUP.md`.
+
+The key should be generated with:
+- Key type: RSA 4096 bits
+- Name: OPCAT Labs Release Signing
+- Purpose: Signing electrs binary releases
+
+Once generated, the public key block will be appended below this section.
+
+---
+
+<!--
+To add the public key, run:
+gpg --export --armor YOUR_KEY_ID >> KEYS
+-->

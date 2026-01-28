@@ -231,10 +231,10 @@ impl Query {
         #[cfg(feature = "opcat_layer")]
         {
             match self.daemon.get_mempoolminfee() {
-                Ok(fee) => return HashMap::from([(1, fee)]),
+                Ok(fee) => HashMap::from([(1, fee)]),
                 Err(err) => {
                     warn!("failed to get mempoolminfee: {:?}", err);
-                    return HashMap::new();
+                    HashMap::new()
                 }
             }
         }
