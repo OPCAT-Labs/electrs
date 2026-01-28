@@ -9,7 +9,7 @@ usage() {
 Usage:
   scripts/create-mainnet-prod-env.sh [--env-file path]
 
-Required secrets (set as env vars or via --env-file):
+Required variables (set as env vars or via --env-file):
   GCP_PROJECT_ID
   GCE_INSTANCE_LIST (comma-separated; supports name@zone)
   GCP_WIF_PROVIDER
@@ -18,11 +18,12 @@ Required secrets (set as env vars or via --env-file):
 Optional (required only if any instance lacks @zone):
   GCE_ZONE
 
-Optional secrets:
+Optional variables:
   ELECTRS_SERVICE
   ELECTRS_ARGS
   ELECTRS_USER
   ELECTRS_WORKDIR
+  ELECTRS_COOKIE_SECRET (GCP Secret Manager secret name for daemon RPC cookie)
 
 Notes:
   - Requires GitHub CLI (gh) logged in with repo access.
@@ -97,7 +98,7 @@ if [[ -z "${GCE_ZONE:-}" ]]; then
 fi
 
 if [[ ${#missing[@]} -gt 0 ]]; then
-  echo "Missing required secrets: ${missing[*]}" >&2
+  echo "Missing required variables: ${missing[*]}" >&2
   exit 1
 fi
 
@@ -105,35 +106,40 @@ fi
 printf "Creating environment %s in %s...\n" "${ENV_NAME}" "${REPO}"
 gh api -X PUT "repos/${REPO}/environments/${ENV_NAME}" >/dev/null
 
-set_secret() {
+set_variable() {
   local name="$1"
   local value="$2"
-  printf "Setting %s...\n" "${name}"
-  gh secret set --env "${ENV_NAME}" "${name}" --body "${value}" >/dev/null
+  printf "Setting variable %s...\n" "${name}"
+  gh variable set --env "${ENV_NAME}" "${name}" --body "${value}" >/dev/null
 }
 
-set_secret "GCP_PROJECT_ID" "${GCP_PROJECT_ID}"
+# Variables (non-sensitive configuration)
+set_variable "GCP_PROJECT_ID" "${GCP_PROJECT_ID}"
 if [[ -n "${GCE_ZONE:-}" ]]; then
-  set_secret "GCE_ZONE" "${GCE_ZONE}"
+  set_variable "GCE_ZONE" "${GCE_ZONE}"
 fi
-set_secret "GCE_INSTANCE_LIST" "${GCE_INSTANCE_LIST}"
-set_secret "GCP_WIF_PROVIDER" "${GCP_WIF_PROVIDER}"
-set_secret "GCP_WIF_SERVICE_ACCOUNT" "${GCP_WIF_SERVICE_ACCOUNT}"
+set_variable "GCE_INSTANCE_LIST" "${GCE_INSTANCE_LIST}"
+set_variable "GCP_WIF_PROVIDER" "${GCP_WIF_PROVIDER}"
+set_variable "GCP_WIF_SERVICE_ACCOUNT" "${GCP_WIF_SERVICE_ACCOUNT}"
 
 if [[ -n "${ELECTRS_SERVICE:-}" ]]; then
-  set_secret "ELECTRS_SERVICE" "${ELECTRS_SERVICE}"
-fi
-
-if [[ -n "${ELECTRS_ARGS:-}" ]]; then
-  set_secret "ELECTRS_ARGS" "${ELECTRS_ARGS}"
+  set_variable "ELECTRS_SERVICE" "${ELECTRS_SERVICE}"
 fi
 
 if [[ -n "${ELECTRS_USER:-}" ]]; then
-  set_secret "ELECTRS_USER" "${ELECTRS_USER}"
+  set_variable "ELECTRS_USER" "${ELECTRS_USER}"
 fi
 
 if [[ -n "${ELECTRS_WORKDIR:-}" ]]; then
-  set_secret "ELECTRS_WORKDIR" "${ELECTRS_WORKDIR}"
+  set_variable "ELECTRS_WORKDIR" "${ELECTRS_WORKDIR}"
 fi
 
-printf "Done. Environment %s secrets configured.\n" "${ENV_NAME}"
+if [[ -n "${ELECTRS_ARGS:-}" ]]; then
+  set_variable "ELECTRS_ARGS" "${ELECTRS_ARGS}"
+fi
+
+if [[ -n "${ELECTRS_COOKIE_SECRET:-}" ]]; then
+  set_variable "ELECTRS_COOKIE_SECRET" "${ELECTRS_COOKIE_SECRET}"
+fi
+
+printf "Done. Environment %s configured.\n" "${ENV_NAME}"

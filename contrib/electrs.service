@@ -8,7 +8,9 @@ Type=simple
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
 WorkingDirectory=${ELECTRS_WORKDIR}
-ExecStart=/usr/local/bin/electrs ${ELECTRS_ARGS}
+Environment="ELECTRS_ARGS=${ELECTRS_ARGS}"
+Environment="ELECTRS_COOKIE_SECRET=${ELECTRS_COOKIE_SECRET}"
+ExecStart=/usr/local/bin/electrs-wrapper
 Restart=on-failure
 RestartSec=10
 Environment="RUST_BACKTRACE=1"

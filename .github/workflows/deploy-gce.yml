@@ -19,19 +19,20 @@ jobs:
       contents: read
       id-token: write
     env:
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCE_ZONE: ${{ secrets.GCE_ZONE }}
-      INSTANCE_LIST: ${{ secrets.GCE_INSTANCE_LIST }}
-      ELECTRS_SERVICE: ${{ secrets.ELECTRS_SERVICE }}
-      ELECTRS_ARGS: ${{ secrets.ELECTRS_ARGS }}
-      ELECTRS_USER: ${{ secrets.ELECTRS_USER }}
-      ELECTRS_WORKDIR: ${{ secrets.ELECTRS_WORKDIR }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCE_ZONE: ${{ vars.GCE_ZONE }}
+      INSTANCE_LIST: ${{ vars.GCE_INSTANCE_LIST }}
+      ELECTRS_SERVICE: ${{ vars.ELECTRS_SERVICE }}
+      ELECTRS_ARGS: ${{ vars.ELECTRS_ARGS }}
+      ELECTRS_USER: ${{ vars.ELECTRS_USER }}
+      ELECTRS_WORKDIR: ${{ vars.ELECTRS_WORKDIR }}
+      ELECTRS_COOKIE_SECRET: ${{ vars.ELECTRS_COOKIE_SECRET }}
     steps:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_WIF_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -68,7 +69,9 @@ jobs:
           SERVICE_USER="${ELECTRS_USER:-opcat}"
           SERVICE_ARGS="${ELECTRS_ARGS:-}"
           SERVICE_WORKDIR="${ELECTRS_WORKDIR:-/var/lib/electrs}"
+          SERVICE_COOKIE_SECRET="${ELECTRS_COOKIE_SECRET:-}"
           SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs.service"
+          WRAPPER_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs-wrapper.sh"
 
           IFS=',' read -r -a INSTANCES <<< "${INSTANCE_LIST}"
 
@@ -103,14 +106,17 @@ jobs:
                 set -euo pipefail
                 cd \"\$tmpdir\"
                 curl -L -o electrs.service ${SERVICE_URL}
+                curl -L -o electrs-wrapper.sh ${WRAPPER_URL}
                 curl -L -H 'Authorization: Bearer ${GITHUB_TOKEN}' -o ${ARCHIVE} ${URL}
                 tar xzf ${ARCHIVE}
               "
               sudo install -m 0755 \"\$tmpdir/electrs-v${VERSION}-linux-x86_64-musl/bin/electrs\" /usr/local/bin/electrs
+              sudo install -m 0755 \"\$tmpdir/electrs-wrapper.sh\" /usr/local/bin/electrs-wrapper
               export SERVICE_NAME=\"${SERVICE_NAME}\"
               export SERVICE_USER=\"${SERVICE_USER}\"
               export ELECTRS_ARGS=\"${SERVICE_ARGS}\"
               export ELECTRS_WORKDIR=\"${SERVICE_WORKDIR}\"
+              export ELECTRS_COOKIE_SECRET=\"${SERVICE_COOKIE_SECRET}\"
               sudo mkdir -p /etc/systemd/system
               envsubst < \"\$tmpdir/electrs.service\" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null
               sudo systemctl daemon-reload
