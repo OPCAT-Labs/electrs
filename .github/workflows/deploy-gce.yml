@@ -27,6 +27,7 @@ jobs:
       ELECTRS_USER: ${{ vars.ELECTRS_USER }}
       ELECTRS_WORKDIR: ${{ vars.ELECTRS_WORKDIR }}
       ELECTRS_COOKIE_SECRET: ${{ vars.ELECTRS_COOKIE_SECRET }}
+      ELECTRS_AFTER: ${{ vars.ELECTRS_AFTER }}
     steps:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -70,6 +71,7 @@ jobs:
           SERVICE_ARGS="${ELECTRS_ARGS:-}"
           SERVICE_WORKDIR="${ELECTRS_WORKDIR:-/var/lib/electrs}"
           SERVICE_COOKIE_SECRET="${ELECTRS_COOKIE_SECRET:-}"
+          SERVICE_AFTER="${ELECTRS_AFTER:-}"
           SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs.service"
           WRAPPER_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs-wrapper.sh"
 
@@ -117,6 +119,7 @@ jobs:
               export ELECTRS_ARGS=\"${SERVICE_ARGS}\"
               export ELECTRS_WORKDIR=\"${SERVICE_WORKDIR}\"
               export ELECTRS_COOKIE_SECRET=\"${SERVICE_COOKIE_SECRET}\"
+              export ELECTRS_AFTER=\"${SERVICE_AFTER}\"
               sudo mkdir -p /etc/systemd/system
               envsubst < \"\$tmpdir/electrs.service\" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null
               sudo systemctl daemon-reload

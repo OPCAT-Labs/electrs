@@ -24,6 +24,7 @@ Optional variables:
   ELECTRS_USER
   ELECTRS_WORKDIR
   ELECTRS_COOKIE_SECRET (GCP Secret Manager secret name for daemon RPC cookie)
+  ELECTRS_AFTER (systemd service dependency, e.g., layerd.service)
 
 Notes:
   - Requires GitHub CLI (gh) logged in with repo access.
@@ -140,6 +141,10 @@ fi
 
 if [[ -n "${ELECTRS_COOKIE_SECRET:-}" ]]; then
   set_variable "ELECTRS_COOKIE_SECRET" "${ELECTRS_COOKIE_SECRET}"
+fi
+
+if [[ -n "${ELECTRS_AFTER:-}" ]]; then
+  set_variable "ELECTRS_AFTER" "${ELECTRS_AFTER}"
 fi
 
 printf "Done. Environment %s configured.\n" "${ENV_NAME}"

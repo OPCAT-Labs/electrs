@@ -1,6 +1,9 @@
 [Unit]
 Description=Electrs Electrum Server
-After=network.target
+# Start after network and the node service (e.g., layerd.service)
+After=network.target ${ELECTRS_AFTER}
+# Weak dependency: node service should be running but not required
+Wants=${ELECTRS_AFTER}
 Documentation=https://github.com/OPCAT-Labs/electrs
 
 [Service]
