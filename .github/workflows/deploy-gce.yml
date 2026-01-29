@@ -26,7 +26,9 @@ jobs:
       ELECTRS_ARGS: ${{ vars.ELECTRS_ARGS }}
       ELECTRS_USER: ${{ vars.ELECTRS_USER }}
       ELECTRS_WORKDIR: ${{ vars.ELECTRS_WORKDIR }}
-      ELECTRS_COOKIE_SECRET: ${{ vars.ELECTRS_COOKIE_SECRET }}
+      ELECTRS_DATA_DIR: ${{ vars.ELECTRS_DATA_DIR }}
+      LAYER_RPC_USER: ${{ vars.LAYER_RPC_USER }}
+      LAYER_RPC_PASSWORD_SECRET: ${{ vars.LAYER_RPC_PASSWORD_SECRET }}
       ELECTRS_AFTER: ${{ vars.ELECTRS_AFTER }}
     steps:
       - name: Authenticate to Google Cloud
@@ -42,7 +44,6 @@ jobs:
 
       - name: Deploy release to GCE instances
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           set -euo pipefail
@@ -70,10 +71,12 @@ jobs:
           SERVICE_USER="${ELECTRS_USER:-opcat}"
           SERVICE_ARGS="${ELECTRS_ARGS:-}"
           SERVICE_WORKDIR="${ELECTRS_WORKDIR:-/var/lib/electrs}"
-          SERVICE_COOKIE_SECRET="${ELECTRS_COOKIE_SECRET:-}"
+          SERVICE_DATA_DIR="${ELECTRS_DATA_DIR:-}"
+          SERVICE_RPC_USER="${LAYER_RPC_USER:-}"
+          SERVICE_RPC_PASSWORD_SECRET="${LAYER_RPC_PASSWORD_SECRET:-}"
           SERVICE_AFTER="${ELECTRS_AFTER:-}"
           SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs.service"
-          WRAPPER_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs-wrapper.sh"
+          FETCH_COOKIE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs-fetch-cookie.sh"
 
           IFS=',' read -r -a INSTANCES <<< "${INSTANCE_LIST}"
 
@@ -91,7 +94,7 @@ jobs:
             fi
 
             echo "Deploying to ${NAME} (${ZONE})..."
-            gcloud compute ssh "${NAME}" --zone "${ZONE}" --command "
+            gcloud compute ssh "${NAME}" --zone "${ZONE}" --tunnel-through-iap --command "
               set -euo pipefail
               if ! id -u \"${SERVICE_USER}\" >/dev/null 2>&1; then
                 echo \"User ${SERVICE_USER} does not exist\" >&2
@@ -106,16 +109,27 @@ jobs:
               fi
               cd \"\$tmpdir\"
               curl -L -o electrs.service ${SERVICE_URL}
-              curl -L -o electrs-wrapper.sh ${WRAPPER_URL}
-              curl -L -H 'Authorization: Bearer ${GITHUB_TOKEN}' -o ${ARCHIVE} ${URL}
+              curl -L -o electrs-fetch-cookie.sh ${FETCH_COOKIE_URL}
+              curl -L -o ${ARCHIVE} ${URL}
               tar xzf ${ARCHIVE}
               sudo install -m 0755 \"\$tmpdir/electrs-v${VERSION}-linux-x86_64-musl/bin/electrs\" /usr/local/bin/electrs
-              sudo install -m 0755 \"\$tmpdir/electrs-wrapper.sh\" /usr/local/bin/electrs-wrapper
+              sudo install -m 0755 \"\$tmpdir/electrs-fetch-cookie.sh\" /usr/local/bin/electrs-fetch-cookie
+              # Create workdir if not exists
+              sudo mkdir -p \"${SERVICE_WORKDIR}\"
+              sudo chown \"${SERVICE_USER}:${SERVICE_USER}\" \"${SERVICE_WORKDIR}\"
+              # Create static environment file
+              sudo mkdir -p /etc/electrs
+              echo \"ELECTRS_ARGS=${SERVICE_ARGS}\" | sudo tee /etc/electrs/env >/dev/null
+              echo \"LAYER_RPC_USER=${SERVICE_RPC_USER}\" | sudo tee -a /etc/electrs/env >/dev/null
+              echo \"LAYER_RPC_PASSWORD_SECRET=${SERVICE_RPC_PASSWORD_SECRET}\" | sudo tee -a /etc/electrs/env >/dev/null
+              echo \"RUST_BACKTRACE=1\" | sudo tee -a /etc/electrs/env >/dev/null
+              sudo chmod 600 /etc/electrs/env
+              sudo chown root:root /etc/electrs/env
+              # Setup systemd service
               export SERVICE_NAME=\"${SERVICE_NAME}\"
               export SERVICE_USER=\"${SERVICE_USER}\"
-              export ELECTRS_ARGS=\"${SERVICE_ARGS}\"
               export ELECTRS_WORKDIR=\"${SERVICE_WORKDIR}\"
-              export ELECTRS_COOKIE_SECRET=\"${SERVICE_COOKIE_SECRET}\"
+              export ELECTRS_DATA_DIR=\"${SERVICE_DATA_DIR}\"
               export ELECTRS_AFTER=\"${SERVICE_AFTER}\"
               sudo mkdir -p /etc/systemd/system
               envsubst < \"\$tmpdir/electrs.service\" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null
