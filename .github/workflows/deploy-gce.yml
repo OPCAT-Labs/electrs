@@ -1,0 +1,129 @@
+name: Deploy to GCE
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+
+jobs:
+  deploy-gce:
+    name: Deploy to GCE
+    runs-on: ubuntu-22.04
+    environment: mainnet-prod
+    if: github.event_name != 'release' || github.event.release.prerelease == false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCE_ZONE: ${{ vars.GCE_ZONE }}
+      INSTANCE_LIST: ${{ vars.GCE_INSTANCE_LIST }}
+      ELECTRS_SERVICE: ${{ vars.ELECTRS_SERVICE }}
+      ELECTRS_ARGS: ${{ vars.ELECTRS_ARGS }}
+      ELECTRS_USER: ${{ vars.ELECTRS_USER }}
+      ELECTRS_WORKDIR: ${{ vars.ELECTRS_WORKDIR }}
+      ELECTRS_COOKIE_SECRET: ${{ vars.ELECTRS_COOKIE_SECRET }}
+      ELECTRS_AFTER: ${{ vars.ELECTRS_AFTER }}
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy release to GCE instances
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${INSTANCE_LIST}" ]; then
+            echo "GCE_INSTANCE_LIST is empty" >&2
+            exit 1
+          fi
+
+          if [ -z "${TAG}" ]; then
+            echo "tag input is required" >&2
+            exit 1
+          fi
+
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "tag must be a stable tag like v1.2.3" >&2
+            exit 1
+          fi
+
+          VERSION=${TAG#v}
+
+          ARCHIVE="electrs-v${VERSION}-linux-x86_64-musl.tar.gz"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${ARCHIVE}"
+          SERVICE_NAME="${ELECTRS_SERVICE:-electrs}"
+          SERVICE_USER="${ELECTRS_USER:-opcat}"
+          SERVICE_ARGS="${ELECTRS_ARGS:-}"
+          SERVICE_WORKDIR="${ELECTRS_WORKDIR:-/var/lib/electrs}"
+          SERVICE_COOKIE_SECRET="${ELECTRS_COOKIE_SECRET:-}"
+          SERVICE_AFTER="${ELECTRS_AFTER:-}"
+          SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs.service"
+          WRAPPER_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs-wrapper.sh"
+
+          IFS=',' read -r -a INSTANCES <<< "${INSTANCE_LIST}"
+
+          for INSTANCE in "${INSTANCES[@]}"; do
+            ZONE="${GCE_ZONE:-}"
+            NAME="${INSTANCE}"
+            if [[ "${INSTANCE}" == *"@"* ]]; then
+              NAME="${INSTANCE%@*}"
+              ZONE="${INSTANCE#*@}"
+            fi
+
+            if [ -z "${ZONE}" ]; then
+              echo "Missing zone for instance ${NAME}" >&2
+              exit 1
+            fi
+
+            echo "Deploying to ${NAME} (${ZONE})..."
+            gcloud compute ssh "${NAME}" --zone "${ZONE}" --command "
+              set -euo pipefail
+              if ! id -u \"${SERVICE_USER}\" >/dev/null 2>&1; then
+                echo \"User ${SERVICE_USER} does not exist\" >&2
+                exit 1
+              fi
+
+              tmpdir=\$(mktemp -d)
+              sudo chown \"${SERVICE_USER}:${SERVICE_USER}\" \"\$tmpdir\"
+              if ! command -v envsubst >/dev/null 2>&1; then
+                sudo apt-get update
+                sudo apt-get install -y gettext-base
+              fi
+              sudo su - \"${SERVICE_USER}\" -c "
+                set -euo pipefail
+                cd \"\$tmpdir\"
+                curl -L -o electrs.service ${SERVICE_URL}
+                curl -L -o electrs-wrapper.sh ${WRAPPER_URL}
+                curl -L -H 'Authorization: Bearer ${GITHUB_TOKEN}' -o ${ARCHIVE} ${URL}
+                tar xzf ${ARCHIVE}
+              "
+              sudo install -m 0755 \"\$tmpdir/electrs-v${VERSION}-linux-x86_64-musl/bin/electrs\" /usr/local/bin/electrs
+              sudo install -m 0755 \"\$tmpdir/electrs-wrapper.sh\" /usr/local/bin/electrs-wrapper
+              export SERVICE_NAME=\"${SERVICE_NAME}\"
+              export SERVICE_USER=\"${SERVICE_USER}\"
+              export ELECTRS_ARGS=\"${SERVICE_ARGS}\"
+              export ELECTRS_WORKDIR=\"${SERVICE_WORKDIR}\"
+              export ELECTRS_COOKIE_SECRET=\"${SERVICE_COOKIE_SECRET}\"
+              export ELECTRS_AFTER=\"${SERVICE_AFTER}\"
+              sudo mkdir -p /etc/systemd/system
+              envsubst < \"\$tmpdir/electrs.service\" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null
+              sudo systemctl daemon-reload
+              sudo systemctl enable ${SERVICE_NAME}
+              sudo systemctl restart ${SERVICE_NAME}
+            "
+          done
