@@ -104,14 +104,11 @@ jobs:
                 sudo apt-get update
                 sudo apt-get install -y gettext-base
               fi
-              sudo su - \"${SERVICE_USER}\" -c "
-                set -euo pipefail
-                cd \"\$tmpdir\"
-                curl -L -o electrs.service ${SERVICE_URL}
-                curl -L -o electrs-wrapper.sh ${WRAPPER_URL}
-                curl -L -H 'Authorization: Bearer ${GITHUB_TOKEN}' -o ${ARCHIVE} ${URL}
-                tar xzf ${ARCHIVE}
-              "
+              cd \"\$tmpdir\"
+              sudo -u \"${SERVICE_USER}\" curl -L -o electrs.service ${SERVICE_URL}
+              sudo -u \"${SERVICE_USER}\" curl -L -o electrs-wrapper.sh ${WRAPPER_URL}
+              sudo -u \"${SERVICE_USER}\" curl -L -H 'Authorization: Bearer ${GITHUB_TOKEN}' -o ${ARCHIVE} ${URL}
+              sudo -u \"${SERVICE_USER}\" tar xzf ${ARCHIVE}
               sudo install -m 0755 \"\$tmpdir/electrs-v${VERSION}-linux-x86_64-musl/bin/electrs\" /usr/local/bin/electrs
               sudo install -m 0755 \"\$tmpdir/electrs-wrapper.sh\" /usr/local/bin/electrs-wrapper
               export SERVICE_NAME=\"${SERVICE_NAME}\"
