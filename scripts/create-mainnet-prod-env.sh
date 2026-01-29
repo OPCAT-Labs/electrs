@@ -23,7 +23,9 @@ Optional variables:
   ELECTRS_ARGS
   ELECTRS_USER
   ELECTRS_WORKDIR
-  ELECTRS_COOKIE_SECRET (GCP Secret Manager secret name for daemon RPC cookie)
+  ELECTRS_DATA_DIR (database directory, e.g., /mnt/electrs-data)
+  LAYER_RPC_USER (RPC username)
+  LAYER_RPC_PASSWORD_SECRET (GCP Secret Manager secret name for RPC password)
   ELECTRS_AFTER (systemd service dependency, e.g., layerd.service)
 
 Notes:
@@ -135,12 +137,20 @@ if [[ -n "${ELECTRS_WORKDIR:-}" ]]; then
   set_variable "ELECTRS_WORKDIR" "${ELECTRS_WORKDIR}"
 fi
 
-if [[ -n "${ELECTRS_ARGS:-}" ]]; then
-  set_variable "ELECTRS_ARGS" "${ELECTRS_ARGS}"
+if [[ -n "${ELECTRS_DATA_DIR:-}" ]]; then
+  set_variable "ELECTRS_DATA_DIR" "${ELECTRS_DATA_DIR}"
 fi
 
-if [[ -n "${ELECTRS_COOKIE_SECRET:-}" ]]; then
-  set_variable "ELECTRS_COOKIE_SECRET" "${ELECTRS_COOKIE_SECRET}"
+if [[ -n "${LAYER_RPC_USER:-}" ]]; then
+  set_variable "LAYER_RPC_USER" "${LAYER_RPC_USER}"
+fi
+
+if [[ -n "${LAYER_RPC_PASSWORD_SECRET:-}" ]]; then
+  set_variable "LAYER_RPC_PASSWORD_SECRET" "${LAYER_RPC_PASSWORD_SECRET}"
+fi
+
+if [[ -n "${ELECTRS_ARGS:-}" ]]; then
+  set_variable "ELECTRS_ARGS" "${ELECTRS_ARGS}"
 fi
 
 if [[ -n "${ELECTRS_AFTER:-}" ]]; then
