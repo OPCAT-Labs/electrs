@@ -133,12 +133,16 @@ jobs:
               sudo chmod 600 /etc/electrs/env
               sudo chown root:root /etc/electrs/env
               # Setup systemd service
-              export SERVICE_NAME=\"${SERVICE_NAME}\"
               export SERVICE_USER=\"${SERVICE_USER}\"
               export ELECTRS_WORKDIR=\"${SERVICE_WORKDIR}\"
-              export ELECTRS_DATA_DIR=\"${SERVICE_DATA_DIR}\"
               sudo mkdir -p /etc/systemd/system
-              envsubst < \"\$tmpdir/electrs.service\" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null
+              envsubst '\$SERVICE_USER \$ELECTRS_WORKDIR' < \"\$tmpdir/electrs.service\" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null
+              # Add ReadWritePaths for workdir and optionally data dir
+              RW_PATHS=\"${SERVICE_WORKDIR}\"
+              if [ -n \"${SERVICE_DATA_DIR}\" ] && [ \"${SERVICE_DATA_DIR}\" != \"${SERVICE_WORKDIR}\" ]; then
+                RW_PATHS=\"${SERVICE_WORKDIR} ${SERVICE_DATA_DIR}\"
+              fi
+              sudo sed -i \"/^ProtectHome=/a ReadWritePaths=\${RW_PATHS}\" /etc/systemd/system/${SERVICE_NAME}.service
               sudo systemctl daemon-reload
               sudo systemctl enable ${SERVICE_NAME}
               sudo systemctl restart ${SERVICE_NAME}
