@@ -26,7 +26,6 @@ Optional variables:
   ELECTRS_DATA_DIR (database directory, e.g., /mnt/electrs-data)
   LAYER_RPC_USER (RPC username)
   LAYER_RPC_PASSWORD_SECRET (GCP Secret Manager secret name for RPC password)
-  ELECTRS_AFTER (systemd service dependency, e.g., layerd.service)
 
 Notes:
   - Requires GitHub CLI (gh) logged in with repo access.
@@ -151,10 +150,6 @@ fi
 
 if [[ -n "${ELECTRS_ARGS:-}" ]]; then
   set_variable "ELECTRS_ARGS" "${ELECTRS_ARGS}"
-fi
-
-if [[ -n "${ELECTRS_AFTER:-}" ]]; then
-  set_variable "ELECTRS_AFTER" "${ELECTRS_AFTER}"
 fi
 
 printf "Done. Environment %s configured.\n" "${ENV_NAME}"
