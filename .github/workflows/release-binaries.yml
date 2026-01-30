@@ -216,6 +216,9 @@ jobs:
     needs: [create-release]
     # Only deploy stable releases, not prereleases (e.g., v1.2.3-rc1)
     if: ${{ !contains(github.ref_name, '-') }}
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/deploy-gce.yml
     with:
       tag: ${{ github.ref_name }}
