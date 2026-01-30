@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      - 'v*.*.*-*'
 
 env:
   CARGO_TERM_COLOR: always
@@ -168,7 +169,7 @@ jobs:
         with:
           name: Release v${{ steps.get_version.outputs.VERSION }}
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             artifacts/*.tar.gz
             artifacts/SHA256SUMS
@@ -209,3 +210,13 @@ jobs:
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    name: Deploy to GCE
+    needs: [create-release]
+    # Only deploy stable releases, not prereleases (e.g., v1.2.3-rc1)
+    if: ${{ !contains(github.ref_name, '-') }}
+    uses: ./.github/workflows/deploy-gce.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

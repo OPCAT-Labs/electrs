@@ -1,9 +1,12 @@
 name: Deploy to GCE
 
 on:
-  workflow_run:
-    workflows: ["Release Binaries"]
-    types: [completed]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
@@ -15,8 +18,6 @@ jobs:
     name: Deploy to GCE
     runs-on: ubuntu-22.04
     environment: mainnet-prod
-    # Only run if Release Binaries succeeded, or if manually triggered
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       id-token: write
@@ -31,7 +32,6 @@ jobs:
       ELECTRS_DATA_DIR: ${{ vars.ELECTRS_DATA_DIR }}
       LAYER_RPC_USER: ${{ vars.LAYER_RPC_USER }}
       LAYER_RPC_PASSWORD_SECRET: ${{ vars.LAYER_RPC_PASSWORD_SECRET }}
-      ELECTRS_AFTER: ${{ vars.ELECTRS_AFTER }}
     steps:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -46,9 +46,7 @@ jobs:
 
       - name: Deploy release to GCE instances
         env:
-          # For workflow_dispatch: use inputs.tag
-          # For workflow_run: extract tag from the triggering workflow's head_branch (refs/tags/v*)
-          TAG: ${{ inputs.tag || github.event.workflow_run.head_branch }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
 
@@ -78,7 +76,6 @@ jobs:
           SERVICE_DATA_DIR="${ELECTRS_DATA_DIR:-}"
           SERVICE_RPC_USER="${LAYER_RPC_USER:-}"
           SERVICE_RPC_PASSWORD_SECRET="${LAYER_RPC_PASSWORD_SECRET:-}"
-          SERVICE_AFTER="${ELECTRS_AFTER:-}"
           SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs.service"
           FETCH_COOKIE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/v${VERSION}/contrib/electrs-fetch-cookie.sh"
 
@@ -121,9 +118,15 @@ jobs:
               # Create workdir if not exists
               sudo mkdir -p \"${SERVICE_WORKDIR}\"
               sudo chown \"${SERVICE_USER}:${SERVICE_USER}\" \"${SERVICE_WORKDIR}\"
+              # Create data dir if specified and different from workdir
+              if [ -n \"${SERVICE_DATA_DIR}\" ] && [ \"${SERVICE_DATA_DIR}\" != \"${SERVICE_WORKDIR}\" ]; then
+                sudo mkdir -p \"${SERVICE_DATA_DIR}\"
+                sudo chown \"${SERVICE_USER}:${SERVICE_USER}\" \"${SERVICE_DATA_DIR}\"
+              fi
               # Create static environment file
               sudo mkdir -p /etc/electrs
-              echo \"ELECTRS_ARGS=${SERVICE_ARGS}\" | sudo tee /etc/electrs/env >/dev/null
+              echo \"GCP_PROJECT_ID=${GCP_PROJECT_ID}\" | sudo tee /etc/electrs/env >/dev/null
+              echo \"ELECTRS_ARGS=\\\"${SERVICE_ARGS}\\\"\" | sudo tee -a /etc/electrs/env >/dev/null
               echo \"LAYER_RPC_USER=${SERVICE_RPC_USER}\" | sudo tee -a /etc/electrs/env >/dev/null
               echo \"LAYER_RPC_PASSWORD_SECRET=${SERVICE_RPC_PASSWORD_SECRET}\" | sudo tee -a /etc/electrs/env >/dev/null
               echo \"RUST_BACKTRACE=1\" | sudo tee -a /etc/electrs/env >/dev/null
@@ -134,7 +137,6 @@ jobs:
               export SERVICE_USER=\"${SERVICE_USER}\"
               export ELECTRS_WORKDIR=\"${SERVICE_WORKDIR}\"
               export ELECTRS_DATA_DIR=\"${SERVICE_DATA_DIR}\"
-              export ELECTRS_AFTER=\"${SERVICE_AFTER}\"
               sudo mkdir -p /etc/systemd/system
               envsubst < \"\$tmpdir/electrs.service\" | sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null
               sudo systemctl daemon-reload
