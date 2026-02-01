@@ -1617,9 +1617,13 @@ fn index_transaction(
         if !has_prevout(txi) {
             continue;
         }
-        let prev_txo = previous_txos_map
-            .get(&txi.previous_output)
-            .unwrap_or_else(|| panic!("missing previous txo {}", txi.previous_output));
+        let prev_txo = match previous_txos_map.get(&txi.previous_output) {
+            Some(txo) => txo,
+            None => {
+                warn!("skipping missing previous txo {} during indexing", txi.previous_output);
+                continue;
+            }
+        };
 
         let history = TxHistoryRow::new(
             &prev_txo.script_pubkey,
