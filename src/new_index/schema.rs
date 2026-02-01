@@ -431,9 +431,9 @@ impl Indexer {
         let previous_txos_map = {
             let _timer = self.start_timer("index_lookup");
             if matches!(op, Operation::AddBlocks) {
-                lookup_txos(&self.store.txstore_db, &get_previous_txos(blocks), false)
+                lookup_txos(&self.store.txstore_db, &get_previous_txos(blocks), true)
             } else {
-                lookup_txos_sequential(&self.store.txstore_db, &get_previous_txos(blocks), false)
+                lookup_txos_sequential(&self.store.txstore_db, &get_previous_txos(blocks), true)
             }
         };
         let rows = {
