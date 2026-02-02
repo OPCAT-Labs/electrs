@@ -9,7 +9,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}Electrs Docker Build and Push Script${NC}"
+echo -e "${GREEN}Electrs Multi-Arch Docker Build Script${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
@@ -37,40 +37,125 @@ if [[ -n $(git status -s) ]]; then
     fi
 fi
 
+# Parse command line arguments
+PLATFORMS="linux/amd64,linux/arm64"
+PUSH_IMAGE="true"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --platform)
+            PLATFORMS="$2"
+            shift 2
+            ;;
+        --no-push)
+            PUSH_IMAGE="false"
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [options]"
+            echo ""
+            echo "Options:"
+            echo "  --platform PLATFORMS   Comma-separated list of platforms (default: linux/amd64,linux/arm64)"
+            echo "  --no-push             Build locally without pushing to registry"
+            echo "  --help                Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0                              # Build and push both amd64 and arm64"
+            echo "  $0 --platform linux/amd64       # Build and push only amd64"
+            echo "  $0 --no-push                    # Build locally without pushing"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Image name
 REMOTE_IMAGE="ghcr.io/opcat-labs/electrs:${COMMIT_ID}"
 
-echo -e "${GREEN}Step 1/2: Building Docker image${NC}"
-echo -e "Image: ${REMOTE_IMAGE}"
+echo -e "${GREEN}Configuration:${NC}"
+echo -e "  Platforms: ${YELLOW}${PLATFORMS}${NC}"
+echo -e "  Image: ${YELLOW}${REMOTE_IMAGE}${NC}"
+echo -e "  Push: ${YELLOW}${PUSH_IMAGE}${NC}"
 echo ""
 
-if docker build -t "${REMOTE_IMAGE}" .; then
+# Ensure buildx is available
+if ! docker buildx version > /dev/null 2>&1; then
+    echo -e "${RED}Error: docker buildx is not available${NC}"
+    echo -e "Please install Docker Buildx: https://docs.docker.com/buildx/working-with-buildx/"
+    exit 1
+fi
+
+# Create buildx builder if it doesn't exist
+BUILDER_NAME="electrs-builder"
+if ! docker buildx ls | grep -q "${BUILDER_NAME}"; then
+    echo -e "${YELLOW}Creating buildx builder: ${BUILDER_NAME}${NC}"
+    docker buildx create --name "${BUILDER_NAME}" --use
+    echo ""
+fi
+
+# Use the builder
+docker buildx use "${BUILDER_NAME}"
+
+echo -e "${GREEN}Building Docker image(s)${NC}"
+echo ""
+
+# Prepare build arguments
+BUILD_ARGS=(
+    "--platform" "${PLATFORMS}"
+    "--tag" "${REMOTE_IMAGE}"
+    "--build-arg" "commitHash=${COMMIT_ID}"
+    "--progress" "plain"
+)
+
+# Add output type based on push flag
+if [[ "${PUSH_IMAGE}" == "true" ]]; then
+    BUILD_ARGS+=("--output" "type=registry")
+    echo -e "${YELLOW}Will push to registry after build${NC}"
+else
+    BUILD_ARGS+=("--load")
+    echo -e "${YELLOW}Building for local use only (--load)${NC}"
+    # Note: --load only works with single platform
+    if [[ "${PLATFORMS}" == *","* ]]; then
+        echo -e "${RED}Error: --no-push (--load) only works with a single platform${NC}"
+        echo -e "Please specify a single platform with --platform, e.g.:"
+        echo -e "  $0 --no-push --platform linux/amd64"
+        exit 1
+    fi
+fi
+
+echo ""
+
+# Build the image
+if docker buildx build "${BUILD_ARGS[@]}" .; then
+    echo ""
     echo -e "${GREEN}✓ Build successful${NC}"
     echo ""
 else
+    echo ""
     echo -e "${RED}✗ Build failed${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}Step 2/2: Pushing image to registry${NC}"
-echo -e "Pushing to: ${REMOTE_IMAGE}"
-echo ""
-
-if docker push "${REMOTE_IMAGE}"; then
-    echo -e "${GREEN}✓ Push successful${NC}"
-    echo ""
-else
-    echo -e "${RED}✗ Push failed${NC}"
-    exit 1
-fi
-
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}Build and Push Complete!${NC}"
+echo -e "${GREEN}Build Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "Commit ID: ${YELLOW}${COMMIT_ID}${NC}"
 echo -e "Image: ${YELLOW}${REMOTE_IMAGE}${NC}"
+echo -e "Platforms: ${YELLOW}${PLATFORMS}${NC}"
 echo ""
-echo -e "To pull this image:"
-echo -e "  ${YELLOW}docker pull ${REMOTE_IMAGE}${NC}"
+
+if [[ "${PUSH_IMAGE}" == "true" ]]; then
+    echo -e "${GREEN}Image pushed to registry${NC}"
+    echo -e "To pull this image:"
+    echo -e "  ${YELLOW}docker pull ${REMOTE_IMAGE}${NC}"
+else
+    echo -e "${GREEN}Image loaded locally${NC}"
+    echo -e "To run this image:"
+    echo -e "  ${YELLOW}docker run ${REMOTE_IMAGE}${NC}"
+fi
 echo ""
