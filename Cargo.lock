@@ -778,7 +778,7 @@ dependencies = [
 
 [[package]]
 name = "mempool-electrs"
-version = "3.3.2"
+version = "3.3.3"
 dependencies = [
  "arrayref",
  "base64 0.13.0",
