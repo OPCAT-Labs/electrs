@@ -55,7 +55,53 @@ pub fn has_prevout(txin: &TxIn) -> bool {
 }
 
 pub fn is_spendable(txout: &TxOut) -> bool {
-    !txout.script_pubkey.is_provably_unspendable()
+    #[cfg(not(feature = "opcat_layer"))]
+    {
+        !txout.script_pubkey.is_provably_unspendable()
+    }
+
+    #[cfg(feature = "opcat_layer")]
+    {
+        // OPCAT Layer has different spendability rules than standard Bitcoin:
+        //
+        // 1. OP_RETURN restored functionality - no longer unconditionally fails
+        //    The top stack value determines if execution succeeds
+        //    Only OP_FALSE OP_RETURN is provably unspendable
+        //
+        // 2. New opcodes OP_CHECKSIGFROMSTACK (0xba) and OP_CHECKSIGFROMSTACKVERIFY (0xbb)
+        //    are valid spendable opcodes
+        //
+        // 3. Outputs with value > 0 are considered spendable (dust protection)
+        //
+        // Reference: layer/src/script/script.h:643-649
+        // bool IsUnspendable() const {
+        //     return size() > 1 && *begin() == OP_FALSE && *(begin() + 1) == OP_RETURN;
+        // }
+
+        // Value must be greater than 0
+        if txout.value.as_sat() == 0 {
+            return false;
+        }
+
+        let script_bytes = txout.script_pubkey.as_bytes();
+
+        // Empty scripts are unspendable
+        if script_bytes.is_empty() {
+            return false;
+        }
+
+        // Only OP_FALSE (0x00) followed by OP_RETURN (0x6a) is provably unspendable
+        if script_bytes.len() > 1 && script_bytes[0] == 0x00 && script_bytes[1] == 0x6a {
+            return false;
+        }
+
+        // Everything else is considered spendable, including:
+        // - OP_CHECKSIGFROMSTACK (0xba)
+        // - OP_CHECKSIGFROMSTACKVERIFY (0xbb)
+        // - OP_RETURN by itself (0x6a) - can be spent if unlock script pushes non-zero
+        // - Standard scripts (P2PKH, P2SH, etc.)
+        true
+    }
 }
 
 /// Extract the previous TxOuts of a Transaction's TxIns
