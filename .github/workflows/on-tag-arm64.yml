@@ -1,4 +1,4 @@
-name: Docker build on tag
+name: Docker build ARM64 on tag
 env:
   DOCKER_CLI_EXPERIMENTAL: enabled
   TAG_FMT: "^refs/tags/(((.?[0-9]+){3,4}))$"
@@ -10,16 +10,22 @@ on:
     tags:
       - v[0-9]+.[0-9]+.[0-9]+
       - v[0-9]+.[0-9]+.[0-9]+-*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g., v3.3.5)'
+        required: true
+        type: string
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  build-arm64:
+    runs-on: [self-hosted, linux, ARM64]
     timeout-minutes: 60
-    name: Build and push amd64 image
+    name: Build and push arm64 image (native)
     steps:
       # Workaround based on JonasAlfredsson/docker-on-tmpfs@v1.0.1
       - name: Replace the current swap file
@@ -53,7 +59,12 @@ jobs:
           sudo df -h | grep docker
 
       - name: Set env variables
-        run: echo "TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
+          else
+            echo "TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+          fi
 
       - name: Show set environment variables
         run: |
@@ -83,18 +94,18 @@ jobs:
         uses: actions/cache@v3
         id: cache
         with:
-          path: /tmp/.buildx-cache-amd64
-          key: ${{ runner.os }}-buildx-amd64
+          path: /tmp/.buildx-cache-arm64
+          key: ${{ runner.os }}-buildx-arm64
           restore-keys: |
-            ${{ runner.os }}-buildx-amd64
+            ${{ runner.os }}-buildx-arm64
 
-      - name: Run Docker buildx for amd64
+      - name: Run Docker buildx for arm64
         run: |
           docker buildx build \
-          --cache-from "type=local,src=/tmp/.buildx-cache-amd64" \
-          --cache-to "type=local,dest=/tmp/.buildx-cache-amd64" \
-          --platform linux/amd64 \
-          --tag ghcr.io/opcat-labs/electrs:$TAG \
-          --tag ghcr.io/opcat-labs/electrs:latest \
+          --cache-from "type=local,src=/tmp/.buildx-cache-arm64" \
+          --cache-to "type=local,dest=/tmp/.buildx-cache-arm64" \
+          --platform linux/arm64 \
+          --tag ghcr.io/opcat-labs/electrs:$TAG-arm64 \
+          --tag ghcr.io/opcat-labs/electrs:latest-arm64 \
           --output "type=registry" . \
           --build-arg commitHash=$SHORT_SHA
