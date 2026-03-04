@@ -777,7 +777,7 @@ fn handle_request(
                 })
                 .collect::<Result<Vec<(Transaction, Option<BlockId>)>, _>>()?;
 
-            // XXX orphraned blocks alway get TTL_SHORT
+            // XXX orphaned blocks always get TTL_SHORT
             let ttl = ttl_by_depth(confirmed_blockid.map(|b| b.height), query);
 
             json_response(prepare_txs(txs, query, config), ttl)
