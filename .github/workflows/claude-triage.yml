@@ -36,3 +36,13 @@ jobs:
           claude_args: >
             --max-turns 8
             --allowedTools 'Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label:*)'
+
+      - name: Trigger auto-fix if fixable
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if gh issue view ${{ github.event.issue.number }} --json labels --jq '.labels[].name' | grep -q 'claude-fixable'; then
+            gh api repos/${{ github.repository }}/dispatches \
+              -f event_type=claude-fixable \
+              -f 'client_payload[issue_number]=${{ github.event.issue.number }}'
+          fi
