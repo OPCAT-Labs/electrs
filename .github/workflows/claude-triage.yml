@@ -16,6 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Determine assignee
+        id: assignee
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ASSIGNEE=$(gh api repos/${{ github.repository }}/contributors --jq '.[0].login')
+          echo "login=$ASSIGNEE" >> $GITHUB_OUTPUT
+
       - uses: anthropics/claude-code-action@5f8e5bfe5b03891348854ae401476fc905a6ff6a # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -31,7 +39,9 @@ jobs:
             2. Assess severity and add a priority label (priority:critical, priority:high, priority:medium, priority:low) with:
                gh issue edit ${{ github.event.issue.number }} --add-label "priority:LEVEL"
             3. If it is a clear bug with enough context to fix automatically, also add the label "claude-fixable".
-            4. Post a brief comment summarizing your triage assessment with:
+            4. Assign the issue to ${{ steps.assignee.outputs.login }} with:
+               gh issue edit ${{ github.event.issue.number }} --add-assignee "${{ steps.assignee.outputs.login }}"
+            5. Post a brief comment summarizing your triage assessment with:
                gh issue comment ${{ github.event.issue.number }} --body "COMMENT"
           claude_args: >
             --max-turns 8
