@@ -34,6 +34,5 @@ jobs:
             4. Post a brief comment summarizing your triage assessment with:
                gh issue comment ${{ github.event.issue.number }} --body "COMMENT"
           claude_args: >
-            --model claude-sonnet-4-6
             --max-turns 8
             --allowedTools 'Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label:*)'

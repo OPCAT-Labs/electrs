@@ -42,6 +42,5 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           trigger_phrase: "@claude"
           claude_args: >
-            --model claude-sonnet-4-6
             --max-turns 15
             --allowedTools 'Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(npm:*),Bash(yarn:*),Bash(npx:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh issue comment:*)'
