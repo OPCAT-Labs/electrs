@@ -65,5 +65,5 @@ jobs:
             6. If you cannot fix the issue, comment on it explaining why:
                gh issue comment ${{ steps.issue.outputs.number }} --body "I was unable to automatically fix this issue. <reason>"
           claude_args: >
-            --max-turns 10
+            --max-turns 30
             --allowedTools 'Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(cargo:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh issue comment:*),Bash(gh issue view:*)'
