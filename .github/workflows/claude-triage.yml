@@ -12,7 +12,7 @@ on:
 jobs:
   triage:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +44,7 @@ jobs:
             5. Post a brief comment summarizing your triage assessment with:
                gh issue comment ${{ github.event.issue.number }} --body "COMMENT"
           claude_args: >
-            --max-turns 8
+            --max-turns 10
             --allowedTools 'Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label:*)'
 
       - name: Trigger auto-fix if fixable
