@@ -106,6 +106,5 @@ jobs:
             3. Commit the fixes to the current branch (${{ steps.branch.outputs.branch_name }}).
             4. Open a PR against "${{ github.event.workflow_run.head_branch }}" with title "fix: auto-fix CI failure on PR #${{ steps.pr_info.outputs.pr_number }}".
           claude_args: >
-            --model claude-sonnet-4-6
             --max-turns 15
             --allowedTools 'Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(bun:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr list:*)'
