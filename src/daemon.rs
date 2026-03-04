@@ -680,8 +680,7 @@ impl Daemon {
     pub fn estimatesmartfee_batch(&self, conf_targets: &[u16]) -> Result<HashMap<u16, f64>> {
         let params_list: Vec<Value> = conf_targets.iter().map(|t| json!([t])).collect();
 
-        Ok(self
-            .requests("estimatesmartfee", &params_list)?
+        self.requests("estimatesmartfee", &params_list)?
             .iter()
             .zip(conf_targets)
             .filter_map(|(reply, target)| {
@@ -693,9 +692,13 @@ impl Daemon {
                     return None;
                 }
 
-                let feerate = reply["feerate"]
+                let feerate = match reply["feerate"]
                     .as_f64()
-                    .unwrap_or_else(|| panic!("invalid estimatesmartfee response: {:?}", reply));
+                    .ok_or_else(|| format!("invalid estimatesmartfee response: {:?}", reply))
+                {
+                    Ok(f) => f,
+                    Err(e) => return Some(Err(e.into())),
+                };
 
                 if feerate == -1f64 {
                     warn!("not enough data to estimate fee for target {}", target);
@@ -703,9 +706,9 @@ impl Daemon {
                 }
 
                 // from BTC/kB to sat/b
-                Some((*target, feerate * 100_000f64))
+                Some(Ok((*target, feerate * 100_000f64)))
             })
-            .collect())
+            .collect()
     }
 
     fn get_all_headers(&self, tip: &BlockHash) -> Result<Vec<BlockHeader>> {
