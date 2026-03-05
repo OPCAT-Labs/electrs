@@ -86,6 +86,8 @@ jobs:
 
       - name: Fix CI failures with Claude
         uses: anthropics/claude-code-action@5f8e5bfe5b03891348854ae401476fc905a6ff6a # v1
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
