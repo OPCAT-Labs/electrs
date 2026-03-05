@@ -48,6 +48,17 @@ fn parse_error_code(err: &Value) -> Option<i64> {
     err.as_object()?.get("code")?.as_i64()
 }
 
+fn check_single_response(method: &str, mut values: Vec<Value>) -> Result<Value> {
+    if values.len() != 1 {
+        bail!(
+            "expected 1 response for '{}', got {}",
+            method,
+            values.len()
+        );
+    }
+    Ok(values.remove(0))
+}
+
 fn parse_jsonrpc_reply(mut reply: Value, method: &str, expected_id: u64) -> Result<Value> {
     if let Some(reply_obj) = reply.as_object_mut() {
         if let Some(err) = reply_obj.get("error") {
@@ -508,11 +519,8 @@ impl Daemon {
     }
 
     fn request(&self, method: &str, params: Value) -> Result<Value> {
-        let mut values = self.retry_request_batch(method, &[params], 0.0)?;
-        if values.len() != 1 {
-            bail!("expected 1 response for '{}', got {}", method, values.len());
-        }
-        Ok(values.remove(0))
+        let values = self.retry_request_batch(method, &[params], 0.0)?;
+        check_single_response(method, values)
     }
 
     fn requests(&self, method: &str, params_list: &[Value]) -> Result<Vec<Value>> {
@@ -778,5 +786,42 @@ impl Daemon {
 
         // from BTC/kB to sat/b
         Ok(relayfee * 100_000f64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_single_response_ok() {
+        let values = vec![json!("result")];
+        let result = check_single_response("testmethod", values).unwrap();
+        assert_eq!(result, json!("result"));
+    }
+
+    #[test]
+    fn check_single_response_empty_is_error() {
+        let result = check_single_response("testmethod", vec![]);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("expected 1 response"),
+            "unexpected error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn check_single_response_multiple_is_error() {
+        let values = vec![json!("a"), json!("b")];
+        let result = check_single_response("testmethod", values);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("expected 1 response"),
+            "unexpected error: {}",
+            err
+        );
     }
 }
