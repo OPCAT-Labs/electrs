@@ -198,12 +198,22 @@ fn blkfiles_reader(blk_files: Vec<PathBuf>) -> Fetcher<Vec<u8>> {
     let chan = SyncChannel::new(1);
     let sender = chan.sender();
     let xor_key = blk_files.first().and_then(|p| {
-        let xor_file = p
-            .parent()
-            .expect("blk.dat files must exist in a directory")
-            .join("xor.dat");
+        let parent = match p.parent() {
+            Some(parent) => parent,
+            None => {
+                error!("blk.dat file {:?} has no parent directory", p);
+                return None;
+            }
+        };
+        let xor_file = parent.join("xor.dat");
         if xor_file.exists() {
-            Some(fs::read(xor_file).expect("xor.dat exists"))
+            match fs::read(&xor_file) {
+                Ok(key) => Some(key),
+                Err(e) => {
+                    error!("failed to read {:?}: {}", xor_file, e);
+                    None
+                }
+            }
         } else {
             None
         }
@@ -214,8 +224,13 @@ fn blkfiles_reader(blk_files: Vec<PathBuf>) -> Fetcher<Vec<u8>> {
         spawn_thread("blkfiles_reader", move || {
             for path in blk_files {
                 trace!("reading {:?}", path);
-                let mut blob = fs::read(&path)
-                    .unwrap_or_else(|e| panic!("failed to read {:?}: {:?}", path, e));
+                let mut blob = match fs::read(&path) {
+                    Ok(blob) => blob,
+                    Err(e) => {
+                        error!("failed to read {:?}: {}", path, e);
+                        break;
+                    }
+                };
 
                 // If the xor.dat exists. Use it to decrypt the block files.
                 if let Some(xor_key) = &xor_key {
@@ -224,9 +239,10 @@ fn blkfiles_reader(blk_files: Vec<PathBuf>) -> Fetcher<Vec<u8>> {
                     }
                 }
 
-                sender
-                    .send(blob)
-                    .unwrap_or_else(|_| panic!("failed to send {:?} contents", path));
+                if sender.send(blob).is_err() {
+                    error!("failed to send {:?} contents", path);
+                    break;
+                }
             }
         }),
     )
