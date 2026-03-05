@@ -509,7 +509,13 @@ impl Daemon {
 
     fn request(&self, method: &str, params: Value) -> Result<Value> {
         let mut values = self.retry_request_batch(method, &[params], 0.0)?;
-        assert_eq!(values.len(), 1);
+        if values.len() != 1 {
+            bail!(
+                "expected 1 response for '{}', got {}",
+                method,
+                values.len()
+            );
+        }
         Ok(values.remove(0))
     }
 
