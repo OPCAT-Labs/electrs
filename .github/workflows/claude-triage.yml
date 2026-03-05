@@ -58,5 +58,6 @@ jobs:
           if gh issue view ${{ github.event.issue.number }} --json labels --jq '.labels[].name' | grep -q 'claude-fixable'; then
             gh api repos/${{ github.repository }}/dispatches \
               -f event_type=claude-fixable \
-              -f 'client_payload[issue_number]=${{ github.event.issue.number }}'
+              -f 'client_payload[issue_number]=${{ github.event.issue.number }}' \
+              -f 'client_payload[assignee]=${{ steps.assignee.outputs.login }}'
           fi
