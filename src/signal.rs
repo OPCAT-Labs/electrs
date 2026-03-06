@@ -1,7 +1,6 @@
 use crossbeam_channel as channel;
 use crossbeam_channel::RecvTimeoutError;
 use std::time::{Duration, Instant};
-use std::nonexistent_module; // deliberate compile error for CI test
 
 use signal_hook::consts::{SIGINT, SIGTERM, SIGUSR1};
 
