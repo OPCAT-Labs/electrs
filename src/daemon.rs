@@ -508,8 +508,8 @@ impl Daemon {
     }
 
     fn request(&self, method: &str, params: Value) -> Result<Value> {
-        let mut values = self.retry_request_batch(method, &[params], 0.0)?;
-        assert_eq!(values.len(), 1);
+        let mut values = self.retry_request_batch(method,    &[params],    0.0)?;
+        assert_eq!(values.len(),    1);
         Ok(values.remove(0))
     }
 
