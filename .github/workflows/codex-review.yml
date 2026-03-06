@@ -3,6 +3,7 @@ name: Codex Code Review
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 on:
   pull_request_target:
