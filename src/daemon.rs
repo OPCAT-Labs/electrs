@@ -311,6 +311,17 @@ pub struct Daemon {
     size: HistogramVec,
 }
 
+fn check_single_response(method: &str, mut values: Vec<Value>) -> Result<Value> {
+    if values.len() != 1 {
+        bail!(
+            "expected 1 response for {} request, got {}",
+            method,
+            values.len()
+        );
+    }
+    Ok(values.remove(0))
+}
+
 impl Daemon {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -508,15 +519,8 @@ impl Daemon {
     }
 
     fn request(&self, method: &str, params: Value) -> Result<Value> {
-        let mut values = self.retry_request_batch(method, &[params], 0.0)?;
-        if values.len() != 1 {
-            bail!(
-                "expected 1 response for {} request, got {}",
-                method,
-                values.len()
-            );
-        }
-        Ok(values.remove(0))
+        let values = self.retry_request_batch(method, &[params], 0.0)?;
+        check_single_response(method, values)
     }
 
     fn requests(&self, method: &str, params_list: &[Value]) -> Result<Vec<Value>> {
@@ -782,5 +786,54 @@ impl Daemon {
 
         // from BTC/kB to sat/b
         Ok(relayfee * 100_000f64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_check_single_response_ok() {
+        let values = vec![json!("result")];
+        let result = check_single_response("test_method", values);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), json!("result"));
+    }
+
+    #[test]
+    fn test_check_single_response_empty_returns_error() {
+        let result = check_single_response("test_method", vec![]);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("expected 1 response"),
+            "error message should mention expected count: {}",
+            msg
+        );
+        assert!(
+            msg.contains("got 0"),
+            "error message should mention actual count: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_check_single_response_too_many_returns_error() {
+        let values = vec![json!("a"), json!("b")];
+        let result = check_single_response("test_method", values);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("expected 1 response"),
+            "error message should mention expected count: {}",
+            msg
+        );
+        assert!(
+            msg.contains("got 2"),
+            "error message should mention actual count: {}",
+            msg
+        );
     }
 }
