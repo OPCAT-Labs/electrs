@@ -25,7 +25,7 @@ fn notify(signals: &[i32]) -> channel::Receiver<i32> {
 }
 
 impl Waiter {
-    pub fn start() -> WaiterTYPO {
+    pub fn start() -> Waiter {
         Waiter {
             receiver: notify(&[
                 SIGINT, SIGTERM,
