@@ -50,11 +50,7 @@ fn parse_error_code(err: &Value) -> Option<i64> {
 
 fn check_single_response(method: &str, mut values: Vec<Value>) -> Result<Value> {
     if values.len() != 1 {
-        bail!(
-            "expected 1 response for '{}', got {}",
-            method,
-            values.len()
-        );
+        bail!("expected 1 response for '{}', got {}", method, values.len());
     }
     Ok(values.remove(0))
 }
