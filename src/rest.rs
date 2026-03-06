@@ -434,6 +434,11 @@ fn ttl_by_depth(height: Option<usize>, query: &Query) -> u32 {
     })
 }
 
+#[inline]
+fn is_known_tx_for_status(status: &TransactionStatus, in_mempool: bool) -> bool {
+    status.confirmed || in_mempool
+}
+
 enum TxidLocation {
     Mempool,
     Chain(u32), // contains height
@@ -1368,7 +1373,7 @@ fn handle_request(
             let status = query.get_tx_status(&hash);
             // Avoid raw transaction lookup here: status only needs confirmation state.
             // Return 404 only if tx is neither confirmed nor present in mempool.
-            if !status.confirmed && query.mempool().lookup_txn(&hash).is_none() {
+            if !is_known_tx_for_status(&status, query.mempool().lookup_txn(&hash).is_some()) {
                 return Err(HttpError::not_found("Transaction not found".to_string()));
             }
             let ttl = ttl_by_depth(status.block_height, query);
@@ -1993,6 +1998,7 @@ impl From<std::string::FromUtf8Error> for HttpError {
 #[cfg(test)]
 mod tests {
     use crate::rest::HttpError;
+    use crate::util::TransactionStatus;
     use serde_json::Value;
     use std::collections::HashMap;
 
@@ -2180,5 +2186,27 @@ mod tests {
                 hash, result, core_difficulty,
             );
         }
+    }
+
+    #[test]
+    fn test_is_known_tx_for_status() {
+        use super::is_known_tx_for_status;
+
+        let confirmed = TransactionStatus {
+            confirmed: true,
+            block_height: Some(1),
+            block_hash: None,
+            block_time: None,
+        };
+        let unconfirmed = TransactionStatus {
+            confirmed: false,
+            block_height: None,
+            block_hash: None,
+            block_time: None,
+        };
+
+        assert!(is_known_tx_for_status(&confirmed, false));
+        assert!(is_known_tx_for_status(&unconfirmed, true));
+        assert!(!is_known_tx_for_status(&unconfirmed, false));
     }
 }
