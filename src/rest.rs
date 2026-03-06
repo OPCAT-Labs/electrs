@@ -1366,6 +1366,11 @@ fn handle_request(
         (&Method::GET, Some(&"tx"), Some(hash), Some(&"status"), None, None) => {
             let hash = Txid::from_hex(hash)?;
             let status = query.get_tx_status(&hash);
+            // Avoid raw transaction lookup here: status only needs confirmation state.
+            // Return 404 only if tx is neither confirmed nor present in mempool.
+            if !status.confirmed && query.mempool().lookup_txn(&hash).is_none() {
+                return Err(HttpError::not_found("Transaction not found".to_string()));
+            }
             let ttl = ttl_by_depth(status.block_height, query);
             json_response(status, ttl)
         }
