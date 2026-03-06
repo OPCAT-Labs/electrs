@@ -1365,6 +1365,9 @@ fn handle_request(
         }
         (&Method::GET, Some(&"tx"), Some(hash), Some(&"status"), None, None) => {
             let hash = Txid::from_hex(hash)?;
+            query
+                .lookup_txn(&hash)
+                .ok_or_else(|| HttpError::not_found("Transaction not found".to_string()))?;
             let status = query.get_tx_status(&hash);
             let ttl = ttl_by_depth(status.block_height, query);
             json_response(status, ttl)
