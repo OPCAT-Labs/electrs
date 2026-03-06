@@ -90,6 +90,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "claude[bot]"
           prompt: |
             The CI pipeline failed on branch "${{ github.event.workflow_run.head_branch }}".
             Failed jobs: ${{ join(fromJSON(steps.failure_details.outputs.result).failedJobs, ', ') }}
