@@ -1,5 +1,10 @@
 name: Claude Issue Triage
 
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
 on:
   issues:
     types: [opened, reopened]

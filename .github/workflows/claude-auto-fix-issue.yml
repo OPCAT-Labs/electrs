@@ -1,5 +1,11 @@
 name: Auto Fix Triaged Issues
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
 on:
   repository_dispatch:
     types: [claude-fixable]
