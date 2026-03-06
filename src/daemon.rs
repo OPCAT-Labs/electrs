@@ -411,7 +411,7 @@ impl Daemon {
         debug!("listing block files at {:?}", path);
         let mut paths: Vec<PathBuf> = glob::glob(path.to_str().unwrap())
             .chain_err(|| "failed to list blk*.dat files")?
-            .map(|res| res.unwrap())
+            .map(|res| res.unwrap()) // BUG: panics on unreadable paths
             .collect();
         paths.sort();
         Ok(paths)
