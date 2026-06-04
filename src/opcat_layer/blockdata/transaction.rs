@@ -209,10 +209,26 @@ impl Encodable for TxOut {
 
 impl Decodable for TxOut {
     fn consensus_decode<R: io::Read>(mut reader: R) -> Result<Self, Error> {
+        let value = Decodable::consensus_decode(&mut reader)?;
+        let script_pubkey = Decodable::consensus_decode(&mut reader)?;
+        // Decode the OPCAT-Layer `data` field with the OPCAT-Layer MAX_VEC_SIZE
+        // (64 MB) rather than going through rust-bitcoin's `Vec<u8>` decoder,
+        // whose hard-coded 4 MB MAX_VEC_SIZE rejects on-chain data fields larger
+        // than 4 MB with OversizedVectorAllocation. The overall read is already
+        // bounded by `d.take(MAX_VEC_SIZE)` in `Transaction::consensus_decode`.
+        let len = VarInt::consensus_decode(&mut reader)?.0 as usize;
+        if len > MAX_VEC_SIZE {
+            return Err(Error::OversizedVectorAllocation {
+                requested: len,
+                max: MAX_VEC_SIZE,
+            });
+        }
+        let mut data = vec![0u8; len];
+        reader.read_exact(&mut data)?;
         Ok(TxOut {
-            value: Decodable::consensus_decode(&mut reader)?,
-            script_pubkey: Decodable::consensus_decode(&mut reader)?,
-            data: Decodable::consensus_decode(&mut reader)?,
+            value,
+            script_pubkey,
+            data,
         })
     }
 }
