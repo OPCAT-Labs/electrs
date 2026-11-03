@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - mempool
+      - main
+      - dev
+  workflow_dispatch:
 
 
 name: Compile Check and Lint
@@ -10,7 +13,7 @@ name: Compile Check and Lint
 jobs:
   check:
     name: Compile Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust
@@ -21,7 +24,7 @@ jobs:
 
   fmt:
     name: Formatter
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust
@@ -32,7 +35,7 @@ jobs:
 
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust
@@ -43,7 +46,7 @@ jobs:
 
   clippy:
     name: Linter
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [check]
     strategy:
       matrix: # Try all combinations of features. Some times weird things appear.
