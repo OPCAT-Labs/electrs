@@ -9,8 +9,9 @@ The runner SSHes in as the service user `opcat` with a per-droplet CD key and ru
 `SHA256SUMS`, installs the binary and systemd unit, writes `/etc/electrs/env` from stdin
 and restarts the service. The CD key can run that one script as root and nothing else.
 
-No host addresses are kept in the repo: public addresses are environment secrets
-(masked in logs), and VPC addresses only appear in the `ELECTRS_ARGS` variable.
+No host addresses are kept in the repo. Public addresses (`DO_HOST_LIST`) and VPC
+addresses (`ELECTRS_ARGS`) are environment secrets, so they are masked in the public
+Actions logs (variables are printed in clear in each step's env header).
 
 ## One-time droplet bootstrap (as root)
 
@@ -42,6 +43,6 @@ scripts/create-testnet-env.sh --env-file <path>
 | `DO_KNOWN_HOSTS` | secret | pinned host keys (`ssh-keyscan`) |
 | `DO_SSH_KEY` | secret | CD private key |
 | `LAYER_RPC_PASSWORD` | secret | node RPC password for electrs |
-| `LAYER_RPC_USER` | variable | node RPC user |
+| `LAYER_RPC_USER` | secret | node RPC user |
 | `ELECTRS_USER` | variable | default `opcat` |
-| `ELECTRS_ARGS` | variable | bind electrum/http to the VPC address only |
+| `ELECTRS_ARGS` | secret | bind electrum/http to the VPC address only |

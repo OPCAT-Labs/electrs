@@ -32,8 +32,9 @@ jobs:
     env:
       HOST_LIST: ${{ secrets.DO_HOST_LIST }}
       ELECTRS_USER: ${{ vars.ELECTRS_USER }}
-      ELECTRS_ARGS: ${{ vars.ELECTRS_ARGS }}
-      LAYER_RPC_USER: ${{ vars.LAYER_RPC_USER }}
+      # Secrets, not variables, so they are masked in public logs
+      ELECTRS_ARGS: ${{ secrets.ELECTRS_ARGS }}
+      LAYER_RPC_USER: ${{ secrets.LAYER_RPC_USER }}
       LAYER_RPC_PASSWORD: ${{ secrets.LAYER_RPC_PASSWORD }}
     steps:
       - name: Set up SSH
