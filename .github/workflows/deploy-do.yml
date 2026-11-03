@@ -1,0 +1,79 @@
+name: Deploy to DigitalOcean
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+        type: string
+      environment:
+        description: "GitHub environment holding the droplet config"
+        required: false
+        type: string
+        default: testnet
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+      environment:
+        description: "GitHub environment holding the droplet config"
+        required: false
+        default: testnet
+
+jobs:
+  deploy-do:
+    name: Deploy to DigitalOcean (${{ inputs.environment }})
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    env:
+      HOST_LIST: ${{ secrets.DO_HOST_LIST }}
+      ELECTRS_USER: ${{ vars.ELECTRS_USER }}
+      ELECTRS_ARGS: ${{ vars.ELECTRS_ARGS }}
+      LAYER_RPC_USER: ${{ vars.LAYER_RPC_USER }}
+      LAYER_RPC_PASSWORD: ${{ secrets.LAYER_RPC_PASSWORD }}
+    steps:
+      - name: Set up SSH
+        env:
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_KNOWN_HOSTS: ${{ secrets.DO_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${DO_SSH_KEY}" > ~/.ssh/id_ed25519
+          printf '%s\n' "${DO_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Deploy release to droplets
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${HOST_LIST}" ]; then
+            echo "DO_HOST_LIST is empty" >&2
+            exit 1
+          fi
+
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "tag must look like v1.2.3 or v1.2.3-rc1" >&2
+            exit 1
+          fi
+
+          SERVICE_USER="${ELECTRS_USER:-opcat}"
+
+          IFS=',' read -r -a HOSTS <<< "${HOST_LIST}"
+
+          # Host addresses are secrets; log only the index
+          for i in "${!HOSTS[@]}"; do
+            HOST="${HOSTS[$i]}"
+            echo "Deploying ${TAG} to host #$((i + 1)) of ${#HOSTS[@]}..."
+            printf 'ELECTRS_ARGS="%s"\nLAYER_RPC_USER=%s\nLAYER_RPC_PASSWORD=%s\n' \
+              "${ELECTRS_ARGS}" "${LAYER_RPC_USER}" "${LAYER_RPC_PASSWORD}" \
+              | ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+                  "${SERVICE_USER}@${HOST}" sudo /usr/local/sbin/electrs-deploy "${TAG}"
+          done

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build ELECTRS_ARGS with cookie from GCP Secret Manager
+# Build ELECTRS_ARGS with cookie from GCP Secret Manager (GCE),
+# or from LAYER_RPC_PASSWORD in /etc/electrs/env (DigitalOcean)
 # This script is called by ExecStartPre in systemd
 # RuntimeDirectory=electrs ensures /run/electrs exists
 
@@ -13,8 +14,11 @@ mkdir -p "$(dirname "${ENV_FILE}")"
 # Start with base args
 ARGS="${ELECTRS_ARGS:-}"
 
-# Append cookie from Secret Manager if configured
-if [ -n "${LAYER_RPC_USER:-}" ] && [ -n "${LAYER_RPC_PASSWORD_SECRET:-}" ]; then
+# Append cookie from the static env file if the password is set there directly
+if [ -n "${LAYER_RPC_USER:-}" ] && [ -n "${LAYER_RPC_PASSWORD:-}" ]; then
+  ARGS="${ARGS} --cookie=${LAYER_RPC_USER}:${LAYER_RPC_PASSWORD}"
+# Otherwise append cookie from Secret Manager if configured
+elif [ -n "${LAYER_RPC_USER:-}" ] && [ -n "${LAYER_RPC_PASSWORD_SECRET:-}" ]; then
   PROJECT_ARG=""
   if [ -n "${GCP_PROJECT_ID:-}" ]; then
     PROJECT_ARG="--project=${GCP_PROJECT_ID}"
