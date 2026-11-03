@@ -11,8 +11,8 @@ Usage:
 
 Required (set as env vars or via --env-file, see scripts/testnet.env.example):
   DO_HOST_LIST       comma-separated droplet public addresses (stored as secret)
-  ELECTRS_ARGS
-  LAYER_RPC_USER
+  ELECTRS_ARGS       (stored as secret; contains VPC addresses)
+  LAYER_RPC_USER     (stored as secret)
   LAYER_RPC_PASSWORD (stored as secret)
   DO_SSH_KEY_FILE    path to the per-droplet CD private key (stored as secret)
 
@@ -23,7 +23,7 @@ Optional:
 Notes:
   - Requires GitHub CLI (gh) logged in with repo access.
   - Creates the GitHub environment testnet if missing.
-  - Host addresses are stored as secrets so they are masked in public workflow logs.
+  - Host and VPC addresses are stored as secrets so they are masked in public workflow logs.
 EOF
 }
 
@@ -120,10 +120,10 @@ set_secret() {
 
 # Variables (non-sensitive configuration)
 set_variable "ELECTRS_USER" "${ELECTRS_USER:-opcat}"
-set_variable "ELECTRS_ARGS" "${ELECTRS_ARGS}"
-set_variable "LAYER_RPC_USER" "${LAYER_RPC_USER}"
 
 # Secrets
+set_secret "ELECTRS_ARGS" "${ELECTRS_ARGS}"
+set_secret "LAYER_RPC_USER" "${LAYER_RPC_USER}"
 set_secret "DO_HOST_LIST" "${DO_HOST_LIST}"
 set_secret "DO_KNOWN_HOSTS" "${KNOWN_HOSTS}"
 set_secret "LAYER_RPC_PASSWORD" "${LAYER_RPC_PASSWORD}"
