@@ -94,11 +94,16 @@ jobs:
 
       - name: Run Docker buildx against tag
         run: |
+          # Prereleases (e.g., v1.2.3-rc1) must not move :latest
+          LATEST_TAG=()
+          if [[ "$TAG" != *-* ]]; then
+            LATEST_TAG=(--tag ghcr.io/opcat-labs/electrs:latest)
+          fi
           docker buildx build \
           --cache-from "type=local,src=/tmp/.buildx-cache" \
           --cache-to "type=local,dest=/tmp/.buildx-cache" \
           --platform linux/amd64,linux/arm64 \
           --tag ghcr.io/opcat-labs/electrs:$TAG \
-          --tag ghcr.io/opcat-labs/electrs:latest \
+          "${LATEST_TAG[@]}" \
           --output "type=registry" . \
           --build-arg commitHash=$SHORT_SHA
