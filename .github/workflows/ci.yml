@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - mempool
+      - main
+      - dev
+  workflow_dispatch:
 
 
 name: Compile Check and Lint
