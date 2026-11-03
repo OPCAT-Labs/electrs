@@ -54,6 +54,10 @@ jobs:
             cp contrib/electrs.service "${ARCHIVE_NAME}/contrib/"
           fi
 
+          if [ -f contrib/electrs-fetch-cookie.sh ]; then
+            cp contrib/electrs-fetch-cookie.sh "${ARCHIVE_NAME}/contrib/"
+          fi
+
           if [ -f docs/INSTALL.md ]; then
             cp docs/INSTALL.md "${ARCHIVE_NAME}/docs/"
           fi
@@ -106,6 +110,10 @@ jobs:
 
           if [ -f contrib/electrs.service ]; then
             cp contrib/electrs.service "${ARCHIVE_NAME}/contrib/"
+          fi
+
+          if [ -f contrib/electrs-fetch-cookie.sh ]; then
+            cp contrib/electrs-fetch-cookie.sh "${ARCHIVE_NAME}/contrib/"
           fi
 
           if [ -f docs/INSTALL.md ]; then
@@ -222,4 +230,16 @@ jobs:
     uses: ./.github/workflows/deploy-gce.yml
     with:
       tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  deploy-testnet:
+    name: Deploy to DigitalOcean testnet
+    needs: [create-release]
+    # Testnet takes prereleases too (e.g., v1.2.3-rc1)
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-do.yml
+    with:
+      tag: ${{ github.ref_name }}
+      environment: testnet
     secrets: inherit
